@@ -1,13 +1,11 @@
 mod discord_extractor;
 use tauri::Manager;
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
+#[cfg(not(target_os = "android"))]
 pub fn run() {
   tauri::Builder::default()
     .setup(|app| {
       if cfg!(debug_assertions) {
-        #[allow(unused_imports)]
-        use tauri::Manager;
         app.handle().plugin(
           tauri_plugin_log::Builder::default()
             .level(log::LevelFilter::Info)
@@ -30,8 +28,8 @@ pub fn run() {
             "quit" => app.exit(0),
             "show" => {
                if let Some(window) = app.get_webview_window("main") {
-                   window.show().unwrap();
-                   window.set_focus().unwrap();
+                   let _ = window.show();
+                   let _ = window.set_focus();
                }
             }
             _ => ()
@@ -39,8 +37,8 @@ pub fn run() {
         .on_tray_icon_event(|tray, event| {
             if let tauri::tray::TrayIconEvent::Click { button: tauri::tray::MouseButton::Left, .. } = event {
                 if let Some(window) = tray.app_handle().get_webview_window("main") {
-                    window.show().unwrap();
-                    window.set_focus().unwrap();
+                    let _ = window.show();
+                    let _ = window.set_focus();
                 }
             }
         })
@@ -49,33 +47,37 @@ pub fn run() {
       use tauri_plugin_shell::ShellExt;
       use tauri_plugin_shell::process::CommandEvent;
 
-      // Note: According to Tauri CWD, we might need to adjust the path if run from src-tauri directly.
-      let node_script_path = if std::path::Path::new("core/dist/index.js").exists() {
+      let node_script_path = if std::path::Path::new("../core/dist/index.js").exists() {
+           "../core/dist/index.js"
+      } else if std::path::Path::new("core/dist/index.js").exists() {
            "core/dist/index.js"
       } else {
-           "../core/dist/index.js"
+           eprintln!("[Tauri] Core introuvable ! Vérifiez que core/dist/index.js existe.");
+           return Ok(());
       };
 
-      if let Ok((mut rx, _child)) = app.handle().shell().command("node").args([node_script_path]).spawn() {
-          tauri::async_runtime::spawn(async move {
-              while let Some(event) = rx.recv().await {
-                  match event {
-                      CommandEvent::Stdout(line) => println!("[Node Core] {}", String::from_utf8_lossy(&line)),
-                      CommandEvent::Stderr(line) => eprintln!("[Node Error] {}", String::from_utf8_lossy(&line)),
-                      _ => (),
+      match app.handle().shell().command("node").args([node_script_path]).spawn() {
+          Ok((mut rx, _child)) => {
+              tauri::async_runtime::spawn(async move {
+                  while let Some(event) = rx.recv().await {
+                      match event {
+                          CommandEvent::Stdout(line) => println!("[Node Core] {}", String::from_utf8_lossy(&line)),
+                          CommandEvent::Stderr(line) => eprintln!("[Node Error] {}", String::from_utf8_lossy(&line)),
+                          _ => (),
+                      }
                   }
-              }
-          });
-      } else {
-          eprintln!("[Tauri] Impossible de démarrer le Core Node.js ! Vérifiez le chemin vers core/dist/index.js");
+              });
+          }
+          Err(e) => {
+              eprintln!("[Tauri] Impossible de démarrer le Core Node.js : {}", e);
+          }
       }
 
       Ok(())
     })
     .on_window_event(|window, event| match event {
       tauri::WindowEvent::CloseRequested { api, .. } => {
-        // Hide window instead of quitting the selfbot
-        window.hide().unwrap();
+        let _ = window.hide();
         api.prevent_close();
       }
       _ => {}

@@ -19,7 +19,8 @@
                     "name": "run-node",
                     "cmd": "node",
                     "args": [
-                        "core/dist/index.js"
+                        "core/dist/index.js",
+                        "../core/dist/index.js"
                     ]
                 }
             ]

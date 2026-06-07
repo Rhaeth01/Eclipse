@@ -376,8 +376,8 @@ export default function Home() {
                     ].map(({ label, value, icon: Icon, color }) => (
                       <GlassCard key={label} intensity="low" className="p-4">
                         <div className="flex items-center gap-3">
-                          <div className={`p-2 rounded-lg bg-${color}-500/10`}>
-                            <Icon className={`w-5 h-5 text-${color}-400`} />
+                          <div className={`p-2 rounded-lg ${color === 'indigo' ? 'bg-indigo-500/10' : color === 'emerald' ? 'bg-emerald-500/10' : color === 'amber' ? 'bg-amber-500/10' : 'bg-rose-500/10'}`}>
+                            <Icon className={`w-5 h-5 ${color === 'indigo' ? 'text-indigo-400' : color === 'emerald' ? 'text-emerald-400' : color === 'amber' ? 'text-amber-400' : 'text-rose-400'}`} />
                           </div>
                           <div>
                             <p className="text-2xl font-bold">{value}</p>
@@ -967,10 +967,10 @@ export default function Home() {
                     </h3>
 
                     <div className="space-y-3">
-                      <GlowButton variant="danger" className="w-full">
+                      <GlowButton variant="danger" className="w-full" onClick={() => { clearLogs(); toast.success('Logs effacés'); }}>
                         Effacer tous les logs
                       </GlowButton>
-                      <GlowButton variant="danger" className="w-full">
+                      <GlowButton variant="danger" className="w-full" onClick={() => { localStorage.removeItem('eclipse_app_token'); window.location.reload(); }}>
                         Réinitialiser l&apos;état
                       </GlowButton>
                     </div>

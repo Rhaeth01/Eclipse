@@ -7,8 +7,6 @@
   ],
   "permissions": [
     "core:default",
-    "updater:default",
-    "process:default",
-    "notification:default"
+    "shell:default"
   ]
 }
