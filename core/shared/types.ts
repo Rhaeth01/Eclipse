@@ -31,7 +31,9 @@ export type WsMessageType =
   // Sniper
   | 'update_sniper_config'
   // AutoSlash
-  | 'enable_autobump' | 'disable_autobump' | 'get_autobump_status' | 'autobump_status';
+  | 'enable_autobump' | 'disable_autobump' | 'get_autobump_status' | 'autobump_status'
+  // Bot token management
+  | 'save_bot_token' | 'bot_token_saved';
 
 export interface WsBaseMessage {
   type: WsMessageType;
@@ -45,7 +47,7 @@ export interface WsBaseMessage {
 export interface InitMessage extends WsBaseMessage {
   type: 'init';
   token: string;
-  appToken: string;
+  appToken?: string;
 }
 
 export interface SetStealthModeMessage extends WsBaseMessage {
@@ -240,6 +242,17 @@ export interface AutobumpStatusMessage extends WsBaseMessage {
   };
 }
 
+export interface SaveBotTokenMessage extends WsBaseMessage {
+  type: 'save_bot_token';
+  appToken: string;
+}
+
+export interface BotTokenSavedMessage extends WsBaseMessage {
+  type: 'bot_token_saved';
+  success: boolean;
+  message: string;
+}
+
 export interface QuestInfo {
   id: string;
   title: string;
@@ -335,6 +348,12 @@ export type WsMessage =
   | StopQuestMessage
   | ClaimQuestRewardMessage
   | CreateMockQuestsMessage
+  | UpdateSniperConfigMessage
+  | EnableAutobumpMessage
+  | DisableAutobumpMessage
+  | GetAutobumpStatusMessage
+  | AutobumpStatusMessage
+  | SaveBotTokenMessage
   // Core -> Client
   | DiscordReadyMessage
   | StatusMessage
@@ -346,11 +365,7 @@ export type WsMessage =
   | QuestProgressMessage
   | QuestStatusMessage
   | CoreLogMessage
-  | UpdateSniperConfigMessage
-  | EnableAutobumpMessage
-  | DisableAutobumpMessage
-  | GetAutobumpStatusMessage
-  | AutobumpStatusMessage;
+  | BotTokenSavedMessage;
 
 // ============================================================================
 // TYPE GUARDS
@@ -366,7 +381,8 @@ export function isWsMessage(data: unknown): data is WsMessage {
      'create_backup', 'backup_success', 'command_used',
      'get_quests', 'start_quest', 'stop_quest', 'claim_quest_reward', 'create_mock_quests',
      'quests_update', 'quest_progress', 'quest_status', 'core_log', 'update_sniper_config',
-     'enable_autobump', 'disable_autobump', 'get_autobump_status', 'autobump_status'].includes(msg.type);
+     'enable_autobump', 'disable_autobump', 'get_autobump_status', 'autobump_status',
+     'save_bot_token', 'bot_token_saved'].includes(msg.type);
 }
 
 // Type guard spécifiques

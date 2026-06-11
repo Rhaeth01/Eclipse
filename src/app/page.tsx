@@ -10,7 +10,7 @@ import {
   Play, Square, Plus, X,
   Clock, MessageSquare, Download,
   Radio, AlertTriangle, Image, Link, Type, Gamepad2,
-  Gift, Target, Bell
+  Gift, Target, Bell, Command, Clipboard
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
@@ -50,6 +50,8 @@ export default function Home() {
   const [appToken, setAppToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [appTokenConfigured, setAppTokenConfigured] = useState(false);
+  const [showSetupWizard, setShowSetupWizard] = useState(false);
 
   const [stealthMode, setStealthMode] = useState(true);
   const [silentTyping, setSilentTyping] = useState(false);
@@ -65,7 +67,10 @@ export default function Home() {
 
   useEffect(() => {
     const saved = localStorage.getItem('eclipse_app_token');
-    if (saved) setAppToken(saved);
+    if (saved) {
+      setAppToken(saved);
+      setAppTokenConfigured(true);
+    }
   }, []);
 
   useEffect(() => {
@@ -96,22 +101,33 @@ export default function Home() {
     };
   }, []);
 
-  const handleLogin = async () => {
-    if (!appToken.trim()) {
-      toast.error('Token requis', { description: 'Veuillez entrer votre Application Token' });
-      return;
-    }
-
+  const handleLogin = async (skipBot: boolean = false) => {
+    const finalToken = skipBot ? undefined : appToken.trim() || undefined;
     setIsLoggingIn(true);
     try {
       const extractedToken = await invoke<string>('get_discord_token');
-      localStorage.setItem('eclipse_app_token', appToken.trim());
-      connect(extractedToken, appToken.trim());
+      if (finalToken) {
+        localStorage.setItem('eclipse_app_token', finalToken);
+        setAppTokenConfigured(true);
+      }
+      connect(extractedToken, finalToken);
     } catch (err: any) {
       toast.error('Erreur d\'extraction', { description: err.message });
     } finally {
       setIsLoggingIn(false);
     }
+  };
+
+  const handleSaveBotToken = async (token: string) => {
+    if (!token.trim() || token.trim().length < 10) {
+      toast.error('Token invalide', { description: 'Le token doit contenir au moins 10 caractères.' });
+      return;
+    }
+    localStorage.setItem('eclipse_app_token', token.trim());
+    setAppToken(token.trim());
+    setAppTokenConfigured(true);
+    wsHook.send({ type: 'save_bot_token', appToken: token.trim() } as any);
+    toast.success('Token enregistré', { description: 'Slash Commands disponibles!' });
   };
 
   const handleStealthToggle = (newValue: boolean) => {
@@ -210,19 +226,32 @@ export default function Home() {
                   </button>
                 </div>
                 <p className="text-xs text-[#5c5c66] mt-2">
-                  Requis pour les Slash Commands. Stocké localement.
+                  Optionnel. Requis uniquement pour les Slash Commands. Stocké localement.
                 </p>
               </div>
 
-              <GlowButton
-                onClick={handleLogin}
-                loading={isLoggingIn}
-                disabled={status === 'connecting'}
-                className="w-full"
-                size="lg"
-              >
-                {isLoggingIn ? 'Connexion...' : 'Se connecter'}
-              </GlowButton>
+              <div className="space-y-3">
+                <GlowButton
+                  onClick={() => handleLogin(appToken.trim() ? false : true)}
+                  loading={isLoggingIn}
+                  disabled={status === 'connecting'}
+                  className="w-full"
+                  size="lg"
+                >
+                  {isLoggingIn ? 'Connexion...' : appToken.trim() ? 'Se connecter' : 'Se connecter sans Slash Commands'}
+                </GlowButton>
+                {appToken.trim() && (
+                  <GlowButton
+                    variant="secondary"
+                    onClick={() => handleLogin(true)}
+                    disabled={status === 'connecting' || isLoggingIn}
+                    className="w-full"
+                    size="lg"
+                  >
+                    Passer (sans Slash Commands)
+                  </GlowButton>
+                )}
+              </div>
             </div>
 
             <div className="mt-8 pt-6 border-t border-white/[0.06]">
@@ -283,12 +312,23 @@ export default function Home() {
             ))}
           </nav>
 
-          <div className="p-3">
+          <div className="p-3 flex flex-col gap-3">
             <ConnectionStatus
               state="authenticated"
               user={user}
               className="w-full"
             />
+            {!appTokenConfigured && (
+              <div className="p-2.5 rounded-lg bg-[#1e1e22] border border-[#e69a00]/20">
+                <p className="text-xs text-[#e69a00] font-medium mb-1">Slash Commands désactivés</p>
+                <button
+                  onClick={() => setActiveTab('settings')}
+                  className="text-[10px] text-[#7a7671] hover:text-[#b9b5ae] underline underline-offset-2"
+                >
+                  Configurer →
+                </button>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -750,6 +790,123 @@ export default function Home() {
                           </button>
                         </div>
                       ))}
+                    </div>
+                  </GlassCard>
+
+                  <GlassCard className="p-5" hover={false}>
+                    <h3 className="text-base font-semibold mb-5 flex items-center gap-2 text-[#e69a00]">
+                      <Command className="w-4 h-4" />
+                      Slash Commands
+                    </h3>
+                    <div className="space-y-3">
+                      {appTokenConfigured ? (
+                        <>
+                          <div className="flex items-center gap-2 p-3 rounded-lg bg-[#0c0c0f] border border-[#2d9e8a]/20">
+                            <div className="w-2 h-2 rounded-full bg-[#2d9e8a] animate-pulse" />
+                            <p className="text-sm text-[#2d9e8a]">Token configuré — Slash Commands actifs</p>
+                          </div>
+                          <div className="relative">
+                            <input
+                              type="password"
+                              value={appToken}
+                              readOnly
+                              className="w-full bg-[#0c0c0f] border border-white/[0.06] rounded-lg px-4 py-3 pr-12
+                                       text-[#7a7671] text-sm cursor-default"
+                            />
+                            <button
+                              onClick={async () => {
+                                try {
+                                  await navigator.clipboard.writeText(appToken);
+                                  toast.success('Token copié dans le presse-papier');
+                                } catch {
+                                  toast.error('Impossible de copier le token');
+                                }
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5c5c66] hover:text-[#b9b5ae]"
+                            >
+                              <Clipboard className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <GlowButton
+                            variant="secondary"
+                            className="w-full"
+                            onClick={() => {
+                              localStorage.removeItem('eclipse_app_token');
+                              setAppToken('');
+                              setAppTokenConfigured(false);
+                              toast.info('Token retiré', { description: 'Les Slash Commands sont maintenant désactivés.' });
+                            }}
+                          >
+                            Retirer le token
+                          </GlowButton>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-sm text-[#7a7671]">
+                            Pour utiliser les Slash Commands, vous devez configurer un token d&apos;application Discord.
+                            Vous pouvez le faire automatiquement ou manuellement.
+                          </p>
+                          <div className="relative">
+                            <input
+                              type="password"
+                              value={appToken}
+                              onChange={(e) => setAppToken(e.target.value)}
+                              placeholder="Collez votre token Discord..."
+                              className="w-full bg-[#0c0c0f] border border-white/[0.06] rounded-lg px-4 py-3 pr-12
+                                       text-[#e8e6e3] placeholder-[#5c5c66]
+                                       focus:outline-none focus:border-[#e69a00]/40 focus:ring-1 focus:ring-[#e69a00]/20
+                                       transition-all duration-200 text-sm"
+                            />
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const clipText = await navigator.clipboard.readText();
+                                  if (clipText && clipText.length >= 10 && clipText.length <= 200) {
+                                    setAppToken(clipText);
+                                    toast.success('Token détecté dans le presse-papier!');
+                                  } else {
+                                    toast.info('Aucun token détecté dans le presse-papier');
+                                  }
+                                } catch {
+                                  toast.error('Accès au presse-papier refusé');
+                                }
+                              }}
+                              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5c5c66] hover:text-[#b9b5ae]"
+                              title="Coller depuis le presse-papier"
+                            >
+                              <Clipboard className="w-4 h-4" />
+                            </button>
+                          </div>
+                          <div className="flex gap-2">
+                            <GlowButton
+                              variant="primary"
+                              className="flex-1"
+                              onClick={() => handleSaveBotToken(appToken)}
+                              disabled={!appToken.trim()}
+                            >
+                              Enregistrer le token
+                            </GlowButton>
+                            <GlowButton
+                              variant="secondary"
+                              className="flex-1"
+                              onClick={() => {
+                                toast.info('Assistant de setup en développement...');
+                              }}
+                            >
+                              Setup automatique
+                            </GlowButton>
+                          </div>
+                          <div className="p-3 rounded-lg bg-[#0c0c0f] border border-white/[0.04]">
+                            <h4 className="text-sm font-medium text-[#b9b5ae] mb-2">Configuration manuelle :</h4>
+                            <ol className="text-xs text-[#7a7671] space-y-1 ml-4 list-decimal">
+                              <li>Aller sur <span className="text-[#b9b5ae]">discord.com/developers/applications</span></li>
+                              <li>Créer une nouvelle application nommée &quot;Eclipse&quot;</li>
+                              <li>Aller dans l&apos;onglet &quot;Bot&quot; et cliquer &quot;Add Bot&quot;</li>
+                              <li>Cliquer &quot;Copy Token&quot; et le coller ci-dessus</li>
+                            </ol>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </GlassCard>
 

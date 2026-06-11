@@ -239,6 +239,12 @@ export class EclipseCore {
       return;
     }
 
+    // save_bot_token peut arriver à tout moment (avant ou après init)
+    if (message.type === 'save_bot_token') {
+      await this.handleSaveBotToken(clientId, message as any);
+      return;
+    }
+
     // Vérifier que Discord est connecté pour les autres messages
     if (!this.discordManager.getSelfbot()?.isReady()) {
       const errorMsg: ErrorMessage = {
@@ -270,6 +276,26 @@ export class EclipseCore {
         message: `Erreur de connexion Discord: ${err instanceof Error ? err.message : 'Unknown'}`
       };
       this.wsService.sendToClient(clientId, errorMsg);
+    }
+  }
+
+  private async handleSaveBotToken(clientId: string, message: { appToken: string }): Promise<void> {
+    logger.info('EclipseCore', 'Sauvegarde du token App Bot...');
+
+    const result = await this.discordManager.saveAndConnectBotToken(message.appToken);
+
+    if (result.success) {
+      this.wsService.sendToClient(clientId, {
+        type: 'bot_token_saved',
+        success: true,
+        message: result.message
+      });
+    } else {
+      this.wsService.sendToClient(clientId, {
+        type: 'bot_token_saved',
+        success: false,
+        message: result.message
+      });
     }
   }
 

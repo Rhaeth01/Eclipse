@@ -64,7 +64,7 @@ export const DiscordUserInfoSchema = z.object({
 export const InitMessageSchema = z.object({
   type: z.literal('init'),
   token: z.string().min(10),
-  appToken: z.string().min(10)
+  appToken: z.string().min(10).optional()
 });
 
 export const SetStealthModeSchema = z.object({
@@ -185,6 +185,17 @@ export const AutobumpStatusSchema = z.object({
   status: z.any().optional()
 });
 
+export const SaveBotTokenSchema = z.object({
+  type: z.literal('save_bot_token'),
+  appToken: z.string().min(10)
+});
+
+export const BotTokenSavedSchema = z.object({
+  type: z.literal('bot_token_saved'),
+  success: z.boolean(),
+  message: z.string()
+});
+
 // ============================================================================
 // MESSAGE SCHEMAS (Core -> Client)
 // ============================================================================
@@ -280,6 +291,7 @@ export const WsMessageSchema = z.discriminatedUnion('type', [
   DisableAutobumpSchema,
   GetAutobumpStatusSchema,
   AutobumpStatusSchema,
+  SaveBotTokenSchema,
   // Core -> Client
   DiscordReadySchema,
   StatusSchema,
@@ -290,7 +302,8 @@ export const WsMessageSchema = z.discriminatedUnion('type', [
   QuestsUpdateSchema,
   QuestProgressSchema,
   QuestStatusSchema,
-  CoreLogSchema
+  CoreLogSchema,
+  BotTokenSavedSchema
 ]);
 
 // Type inféré du schéma

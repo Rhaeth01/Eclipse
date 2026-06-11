@@ -52,7 +52,7 @@ export interface UseWebSocketReturn {
   clearLogs: () => void;
   
   // Actions
-  connect: (token: string, appToken: string) => void;
+  connect: (token: string, appToken?: string) => void;
   disconnect: () => void;
   send: (message: Omit<WsMessage, 'timestamp'>) => boolean;
   
@@ -122,9 +122,9 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
   }, [addLog]);
 
   // Connect to Discord (after WS is ready)
-  const connect = useCallback((token: string, appToken: string) => {
-    if (!token || !appToken) {
-      toast.error('Tokens requis');
+  const connect = useCallback((token: string, appToken?: string) => {
+    if (!token) {
+      toast.error('Token utilisateur requis');
       return;
     }
 
@@ -134,12 +134,12 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     }
 
     setStatus('connecting');
-    addLog('Connexion à Discord...', 'info');
+    addLog(appToken ? 'Connexion à Discord...' : 'Connexion à Discord (sans Slash Commands)...', 'info');
 
     send({
       type: 'init',
       token,
-      appToken
+      appToken: appToken || undefined
     } as any);
   }, [send, addLog]);
 
@@ -285,6 +285,15 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
               case 'core_log':
                 // Logs du backend Core
                 addLog(`[${data.module}] ${data.message}`, 'core');
+                break;
+              case 'bot_token_saved':
+                if ((data as any).success) {
+                  addLog('App Bot connecté! Slash Commands disponibles', 'success');
+                  toast.success('Slash Commands', { description: (data as any).message });
+                } else {
+                  addLog(`Échec connexion App Bot: ${(data as any).message}`, 'error');
+                  toast.error('Erreur', { description: (data as any).message });
+                }
                 break;
             }
           } catch (err) {

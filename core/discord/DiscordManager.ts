@@ -38,7 +38,7 @@ import { parseRateLimitHeaders, isRateLimitError, getRetryAfterFromError } from 
 
 export interface DiscordConfig {
   userToken: string;
-  appToken: string;
+  appToken?: string;
 }
 
 export interface DiscordEvents {
@@ -139,7 +139,6 @@ export class DiscordManager extends EventEmitter {
     }
 
     if (!this.appBot?.user) {
-      // Essaie de se connecter si pas déjà connecté
       try {
         await this.initAppBot(this.config.appToken);
         return '✅ App Bot connecté, commandes en cours d\'enregistrement...';
@@ -148,12 +147,33 @@ export class DiscordManager extends EventEmitter {
       }
     }
 
-    // Redéploie les commandes
     try {
       await this.registerSlashCommands(this.config.appToken);
       return '✅ Commandes redéployées avec succès!';
     } catch (err) {
       return `❌ Erreur: ${err}`;
+    }
+  }
+
+  async saveAndConnectBotToken(appToken: string): Promise<{ success: boolean; message: string }> {
+    if (!this.config) {
+      return { success: false, message: 'Discord non configuré. Veuillez vous connecter d\'abord.' };
+    }
+
+    this.config.appToken = appToken;
+
+    if (this.appBot?.isReady()) {
+      return { success: true, message: 'App Bot déjà connecté avec succès.' };
+    }
+
+    try {
+      logger.info('DiscordManager', '🔑 Sauvegarde et connexion du App Bot...');
+      await this.initAppBot(appToken);
+      return { success: true, message: 'App Bot connecté avec succès! Slash Commands disponibles.' };
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Erreur inconnue';
+      logger.error('DiscordManager', `❌ Échec connexion App Bot: ${errorMessage}`);
+      return { success: false, message: `Échec connexion App Bot: ${errorMessage}` };
     }
   }
 

@@ -24,7 +24,9 @@ export type WsMessageType =
   // Logs
   | 'core_log'
   // Autobump
-  | 'enable_autobump' | 'disable_autobump' | 'get_autobump_status' | 'autobump_status';
+  | 'enable_autobump' | 'disable_autobump' | 'get_autobump_status' | 'autobump_status'
+  // Bot token management
+  | 'save_bot_token' | 'bot_token_saved';
 
 export interface WsBaseMessage {
   type: WsMessageType;
@@ -38,7 +40,7 @@ export interface WsBaseMessage {
 export interface InitMessage extends WsBaseMessage {
   type: 'init';
   token: string;
-  appToken: string;
+  appToken?: string;
 }
 
 export interface SetStealthModeMessage extends WsBaseMessage {
@@ -172,6 +174,17 @@ export interface AutobumpStatusMessage extends WsBaseMessage {
   };
 }
 
+export interface SaveBotTokenMessage extends WsBaseMessage {
+  type: 'save_bot_token';
+  appToken: string;
+}
+
+export interface BotTokenSavedMessage extends WsBaseMessage {
+  type: 'bot_token_saved';
+  success: boolean;
+  message: string;
+}
+
 // ============================================================================
 // DATA TYPES
 // ============================================================================
@@ -242,4 +255,6 @@ export type WsMessage =
   | EnableAutobumpMessage
   | DisableAutobumpMessage
   | GetAutobumpStatusMessage
-  | AutobumpStatusMessage;
+  | AutobumpStatusMessage
+  | SaveBotTokenMessage
+  | BotTokenSavedMessage;
