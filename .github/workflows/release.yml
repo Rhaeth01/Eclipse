@@ -38,3 +38,5 @@ jobs:
         with:
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.exe.sig
+            src-tauri/target/release/bundle/nsis/latest.json
