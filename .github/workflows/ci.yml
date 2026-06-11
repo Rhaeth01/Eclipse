@@ -1,0 +1,24 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: |
+          npm install
+          cd core && npm install && cd ..
+
+      - name: TypeCheck core
+        run: cd core && npx tsc
+
+      - name: TypeCheck frontend
+        run: npx tsc -p tsconfig.json

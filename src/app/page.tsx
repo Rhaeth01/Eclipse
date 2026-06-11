@@ -8,7 +8,7 @@ import {
   Shield, Zap, Activity, Eye, Lock,
   Sparkles, Moon, Settings, User,
   Play, Square, Plus, X,
-  Clock, MessageSquare,
+  Clock, MessageSquare, Download,
   Radio, AlertTriangle, Image, Link, Type, Gamepad2,
   Gift, Target, Bell
 } from 'lucide-react';
@@ -20,6 +20,7 @@ import { Console, LogEntry } from '@/components/ui/Console';
 import { ConnectionStatus } from '@/components/ui/ConnectionStatus';
 
 import { useWebSocket, useAnimation, useRichPresence } from '@/hooks';
+import { useUpdater } from '@/hooks/useUpdater';
 import { updateWindowState } from '@/lib/notification';
 import { ActivityType } from '@/lib/websocket/types';
 
@@ -44,6 +45,7 @@ export default function Home() {
   const { status, isDiscordConnected, user, logs, clearLogs, connect } = wsHook;
   const animation = useAnimation({ wsHook });
   const richPresence = useRichPresence({ wsHook });
+  const updater = useUpdater();
 
   const [appToken, setAppToken] = useState('');
   const [showToken, setShowToken] = useState(false);
@@ -771,6 +773,39 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* Update notification */}
+      <AnimatePresence>
+        {updater.updateAvailable && updater.updateInfo && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50"
+          >
+            <div className="flex items-center gap-4 px-5 py-3 rounded-xl bg-[#111114] border border-[#e69a00]/20 shadow-[0_0_30px_-8px_rgba(230,154,0,0.1)]">
+              <div>
+                <p className="text-sm font-medium text-[#e8e6e3]">
+                  v{updater.updateInfo.version} disponible
+                </p>
+                {updater.updateInfo.body && (
+                  <p className="text-xs text-[#7a7671] mt-0.5 line-clamp-1">
+                    {updater.updateInfo.body}
+                  </p>
+                )}
+              </div>
+              <GlowButton
+                size="sm"
+                onClick={updater.downloadAndInstall}
+                loading={updater.downloading}
+                icon={<Download className="w-3.5 h-3.5" />}
+              >
+                Installer
+              </GlowButton>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
