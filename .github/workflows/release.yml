@@ -3,6 +3,9 @@ on:
   push:
     tags: ['v*']
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: windows-latest
@@ -35,6 +38,3 @@ jobs:
         with:
           files: |
             src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/nsis/*.msi
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
