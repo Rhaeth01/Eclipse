@@ -9,7 +9,6 @@ export function TitleBar() {
     const [appWindow, setAppWindow] = useState<any>(null);
 
     useEffect(() => {
-        // Ne charger Tauri API que côté client et UNIQUEMENT si on est dans l'environnement Tauri
         if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
             setAppWindow(getCurrentWindow());
         }
@@ -18,34 +17,33 @@ export function TitleBar() {
     return (
         <div
             data-tauri-drag-region
-            className="h-8 select-none flex justify-between items-center bg-[#111214] border-b border-white/5 sticky top-0 z-50 transition-colors"
-            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties} // Support mac/windows drag if needed
+            className="h-8 select-none flex justify-between items-center bg-[#0c0c0f] border-b border-white/[0.04] sticky top-0 z-50"
+            style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
-            <div
-                data-tauri-drag-region
-                className="flex items-center gap-2 pl-3 h-full cursor-default w-full"
-            >
-                <div className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center overflow-hidden">
+            <div data-tauri-drag-region className="flex items-center gap-2 pl-3 h-full cursor-default w-full">
+                <div className="w-4 h-4 rounded-full bg-[#e69a00]/20 flex items-center justify-center overflow-hidden">
                     <Image src="/icon.png" alt="Eclipse" width={16} height={16} />
                 </div>
-                <span data-tauri-drag-region className="text-xs font-medium text-white/50 tracking-wide uppercase mt-[1px]">Eclipse</span>
+                <span data-tauri-drag-region className="text-[11px] font-medium text-[#7a7671] tracking-wider uppercase mt-[1px]">
+                    Eclipse
+                </span>
             </div>
 
-            <div className="flex h-full items-center pr-3 gap-2">
+            <div className="flex h-full items-center pr-3 gap-1.5">
                 <button
-                    className="flex justify-center items-center w-8 h-5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer text-white/60 hover:text-white"
+                    className="flex justify-center items-center w-7 h-5 rounded-full hover:bg-white/[0.06] transition-colors cursor-pointer text-[#5c5c66] hover:text-[#b9b5ae]"
                     onClick={() => appWindow?.minimize()}
                 >
                     <Minus className="w-3 h-3" />
                 </button>
                 <button
-                    className="flex justify-center items-center w-8 h-5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors cursor-pointer text-white/60 hover:text-white"
+                    className="flex justify-center items-center w-7 h-5 rounded-full hover:bg-white/[0.06] transition-colors cursor-pointer text-[#5c5c66] hover:text-[#b9b5ae]"
                     onClick={() => appWindow?.toggleMaximize()}
                 >
                     <Square className="w-2.5 h-2.5" />
                 </button>
                 <button
-                    className="flex justify-center items-center w-8 h-5 rounded-full bg-white/5 border border-white/10 hover:bg-red-500 hover:border-red-500 hover:shadow-[0_0_8px_rgba(239,68,68,0.5)] transition-colors cursor-pointer text-white/60 hover:text-white"
+                    className="flex justify-center items-center w-7 h-5 rounded-full hover:bg-[#d4656b]/30 transition-colors cursor-pointer text-[#5c5c66] hover:text-[#e8e6e3]"
                     onClick={() => appWindow?.close()}
                 >
                     <X className="w-3 h-3" />

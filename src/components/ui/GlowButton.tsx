@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { ReactNode, useState } from 'react';
+import { ReactNode } from 'react';
 
 interface GlowButtonProps {
   children: ReactNode;
@@ -15,33 +15,17 @@ interface GlowButtonProps {
   icon?: ReactNode;
 }
 
-const variants = {
-  primary: {
-    base: 'bg-indigo-600 text-white border-indigo-500/50',
-    glow: 'shadow-[0_0_20px_-5px_rgba(99,102,241,0.5)] hover:shadow-[0_0_30px_-5px_rgba(99,102,241,0.7)]',
-    gradient: 'from-indigo-500/20 to-purple-500/20'
-  },
-  secondary: {
-    base: 'bg-white/[0.08] text-white border-white/[0.12]',
-    glow: 'hover:shadow-[0_0_20px_-5px_rgba(255,255,255,0.15)]',
-    gradient: 'from-white/10 to-white/5'
-  },
-  danger: {
-    base: 'bg-rose-600 text-white border-rose-500/50',
-    glow: 'shadow-[0_0_20px_-5px_rgba(225,29,72,0.4)] hover:shadow-[0_0_30px_-5px_rgba(225,29,72,0.6)]',
-    gradient: 'from-rose-500/20 to-orange-500/20'
-  },
-  ghost: {
-    base: 'bg-transparent text-zinc-400 border-transparent hover:text-white hover:bg-white/[0.05]',
-    glow: '',
-    gradient: ''
-  }
+const variants: Record<string, string> = {
+  primary:   'bg-[#e69a00] text-[#070709] border-amber-500/30 hover:bg-amber-400',
+  secondary: 'bg-[#1e1e22] text-[#b9b5ae] border-white/[0.06] hover:bg-[#252528] hover:text-[#e8e6e3]',
+  danger:    'bg-[#3d1a1e] text-[#d4656b] border-red-500/15 hover:bg-[#4a1d21]',
+  ghost:     'bg-transparent text-[#7a7671] border-transparent hover:text-[#e8e6e3] hover:bg-[#1e1e22]',
 };
 
-const sizes = {
+const sizes: Record<string, string> = {
   sm: 'px-3 py-1.5 text-xs',
   md: 'px-4 py-2 text-sm',
-  lg: 'px-6 py-3 text-base'
+  lg: 'px-6 py-3 text-base',
 };
 
 export function GlowButton({
@@ -52,49 +36,24 @@ export function GlowButton({
   size = 'md',
   disabled = false,
   loading = false,
-  icon
+  icon,
 }: GlowButtonProps) {
-  const [isPressed, setIsPressed] = useState(false);
-
   return (
     <motion.button
       onClick={onClick}
       disabled={disabled || loading}
-      onMouseDown={() => setIsPressed(true)}
-      onMouseUp={() => setIsPressed(false)}
-      onMouseLeave={() => setIsPressed(false)}
-      whileHover={{ scale: disabled ? 1 : 1.02 }}
-      whileTap={{ scale: disabled ? 1 : 0.98 }}
+      whileHover={disabled ? {} : { scale: 1.01 }}
+      whileTap={disabled ? {} : { scale: 0.99 }}
       className={cn(
-        'relative overflow-hidden rounded-xl font-medium',
-        'border backdrop-blur-sm transition-all duration-300',
+        'relative rounded-lg font-medium',
+        'border transition-all duration-200',
         'flex items-center justify-center gap-2',
-        variants[variant].base,
-        !disabled && variants[variant].glow,
+        variants[variant],
         sizes[size],
-        disabled && 'opacity-50 cursor-not-allowed',
+        disabled && 'opacity-40 cursor-not-allowed',
         className
       )}
     >
-      {/* Animated gradient background */}
-      <motion.div
-        className={cn(
-          'absolute inset-0 bg-gradient-to-r',
-          variants[variant].gradient,
-          'opacity-0 hover:opacity-100 transition-opacity duration-300'
-        )}
-        animate={isPressed ? { scale: 0.95 } : { scale: 1 }}
-      />
-
-      {/* Shine effect */}
-      <motion.div
-        className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-        initial={{ x: '-100%' }}
-        whileHover={{ x: '100%' }}
-        transition={{ duration: 0.6, ease: 'easeInOut' }}
-      />
-
-      {/* Loading spinner */}
       {loading && (
         <motion.div
           animate={{ rotate: 360 }}
@@ -102,23 +61,8 @@ export function GlowButton({
           className="w-4 h-4 border-2 border-current border-t-transparent rounded-full"
         />
       )}
-
-      {/* Icon */}
-      {icon && !loading && <span className="relative z-10">{icon}</span>}
-
-      {/* Text */}
-      <span className="relative z-10">{children}</span>
-
-      {/* Ripple effect on click */}
-      {isPressed && !disabled && (
-        <motion.div
-          initial={{ scale: 0, opacity: 0.5 }}
-          animate={{ scale: 2, opacity: 0 }}
-          transition={{ duration: 0.5 }}
-          className="absolute inset-0 bg-white/30 rounded-full"
-          style={{ transformOrigin: 'center' }}
-        />
-      )}
+      {icon && !loading && <span>{icon}</span>}
+      <span>{children}</span>
     </motion.button>
   );
 }

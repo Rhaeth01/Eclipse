@@ -144,7 +144,7 @@ export const QuestPanel: React.FC<QuestPanelProps> = ({
         </h4>
 
         {activeQuests.length === 0 ? (
-          <GlassCard intensity="low" className="p-8 text-center">
+          <GlassCard className="p-8 text-center">
             <Gift className="w-12 h-12 mx-auto mb-3 text-zinc-600" />
             <p className="text-zinc-500">Aucune quête active</p>
             <p className="text-xs text-zinc-600 mt-1">
@@ -161,9 +161,9 @@ export const QuestPanel: React.FC<QuestPanelProps> = ({
             return (
               <GlassCard
                 key={quest.id}
-                intensity="medium"
+               
                 className="overflow-hidden"
-                glow="rose"
+                glow="coral"
               >
                 <div className="p-4">
                   <div className="flex items-start gap-4">
@@ -309,7 +309,7 @@ export const QuestPanel: React.FC<QuestPanelProps> = ({
             {completedQuests.map((quest) => (
               <GlassCard
                 key={quest.id}
-                intensity="low"
+               
                 className="p-3 opacity-60 hover:opacity-100 transition-opacity"
               >
                 <div className="flex items-center gap-2">

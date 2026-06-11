@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Space_Grotesk, JetBrains_Mono } from "next/font/google";
 import { TitleBar } from "@/components/TitleBar";
 import { initNotifications } from "@/lib/notification";
 import "./globals.css";
 
-// Initialise les notifications au démarrage (côté client uniquement)
 if (typeof window !== 'undefined') {
   initNotifications().catch(console.error);
 }
 
-const inter = Inter({
-  variable: "--font-inter",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-sans",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-mono",
   subsets: ["latin"],
   display: "swap",
 });
@@ -28,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="fr" className="dark">
       <body
-        className={`${inter.variable} font-sans antialiased selection:bg-indigo-500/30 dark`}
+        className={`${spaceGrotesk.variable} ${jetbrainsMono.variable} font-sans antialiased dark`}
       >
         <TitleBar />
         {children}

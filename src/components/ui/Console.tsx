@@ -2,8 +2,8 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { ReactNode, useRef, useEffect } from 'react';
-import { Trash2, Clock, Shield, AlertTriangle, Eye, Radio } from 'lucide-react';
+import { useRef, useEffect } from 'react';
+import { Trash2, Clock, AlertTriangle, Eye, Radio } from 'lucide-react';
 
 export interface LogEntry {
   id: string;
@@ -23,49 +23,13 @@ interface ConsoleProps {
   autoScroll?: boolean;
 }
 
-const typeConfig = {
-  info: {
-    icon: Radio,
-    color: 'text-indigo-400',
-    bg: 'bg-indigo-500/10',
-    border: 'border-indigo-500/20',
-    glow: 'shadow-[0_0_15px_-5px_rgba(99,102,241,0.3)]'
-  },
-  success: {
-    icon: Shield,
-    color: 'text-emerald-400',
-    bg: 'bg-emerald-500/10',
-    border: 'border-emerald-500/20',
-    glow: 'shadow-[0_0_15px_-5px_rgba(16,185,129,0.3)]'
-  },
-  warning: {
-    icon: AlertTriangle,
-    color: 'text-amber-400',
-    bg: 'bg-amber-500/10',
-    border: 'border-amber-500/20',
-    glow: 'shadow-[0_0_15px_-5px_rgba(245,158,11,0.3)]'
-  },
-  error: {
-    icon: AlertTriangle,
-    color: 'text-rose-400',
-    bg: 'bg-rose-500/10',
-    border: 'border-rose-500/20',
-    glow: 'shadow-[0_0_15px_-5px_rgba(244,63,94,0.3)]'
-  },
-  spy: {
-    icon: Eye,
-    color: 'text-purple-400',
-    bg: 'bg-purple-500/10',
-    border: 'border-purple-500/20',
-    glow: 'shadow-[0_0_15px_-5px_rgba(168,85,247,0.3)]'
-  },
-  core: {
-    icon: Clock,
-    color: 'text-cyan-400',
-    bg: 'bg-cyan-500/10',
-    border: 'border-cyan-500/20',
-    glow: 'shadow-[0_0_15px_-5px_rgba(34,211,238,0.3)]'
-  }
+const accentColors: Record<string, string> = {
+  info:    '#e69a00',
+  success: '#2d9e8a',
+  warning: '#b8860b',
+  error:   '#d4656b',
+  spy:     '#8b9dc3',
+  core:    '#7a7671',
 };
 
 export function Console({
@@ -74,7 +38,7 @@ export function Console({
   onRemove,
   className,
   maxHeight = '400px',
-  autoScroll = true
+  autoScroll = true,
 }: ConsoleProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -85,44 +49,25 @@ export function Console({
   }, [logs, autoScroll]);
 
   return (
-    <div className={cn(
-      'relative rounded-2xl overflow-hidden',
-      'bg-black/40 backdrop-blur-xl',
-      'border border-white/[0.08]',
-      className
-    )}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.08]">
+    <div className={cn('flex flex-col h-full rounded-xl bg-[#0c0c0f] border border-white/[0.06]', className)}>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.05] shrink-0">
+        <span className="text-xs font-medium text-[#7a7671] tracking-wide uppercase">
+          Logs
+        </span>
         <div className="flex items-center gap-2">
-          <div className="flex gap-1.5">
-            <div className="w-3 h-3 rounded-full bg-rose-500/80" />
-            <div className="w-3 h-3 rounded-full bg-amber-500/80" />
-            <div className="w-3 h-3 rounded-full bg-emerald-500/80" />
-          </div>
-          <span className="ml-3 text-xs font-mono text-zinc-500 uppercase tracking-wider">
-            Console Output
-          </span>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-zinc-500 font-mono">
-            {logs.length} entries
-          </span>
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <span className="text-[11px] text-[#5c5c66] tabular-nums">{logs.length}</span>
+          <button
             onClick={onClear}
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+            className="p-1 rounded-md text-[#5c5c66] hover:text-[#d4656b] hover:bg-[#1e1e22] transition-colors"
           >
-            <Trash2 className="w-4 h-4" />
-          </motion.button>
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
         </div>
       </div>
 
-      {/* Log entries */}
       <div
         ref={scrollRef}
-        className="overflow-y-auto p-4 space-y-2 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent"
+        className="flex-1 overflow-y-auto p-3 space-y-1.5"
         style={{ maxHeight }}
       >
         <AnimatePresence mode="popLayout">
@@ -130,83 +75,57 @@ export function Console({
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center py-12 text-zinc-600"
+              className="flex flex-col items-center justify-center h-full text-[#5c5c66]"
             >
-              <Radio className="w-8 h-8 mb-2 opacity-50" />
-              <span className="text-sm font-mono">En attente d&apos;événements...</span>
+              <Radio className="w-6 h-6 mb-2 opacity-30" />
+              <span className="text-xs">En attente d&apos;événements...</span>
             </motion.div>
           ) : (
             logs.map((log) => {
-              const config = typeConfig[log.type];
-              const Icon = config.icon;
+              const color = accentColors[log.type];
 
               return (
                 <motion.div
                   key={log.id}
                   layout
-                  initial={{ opacity: 0, x: -20, scale: 0.95 }}
-                  animate={{ 
-                    opacity: log.isDeleting ? 0 : 1, 
-                    x: log.isDeleting ? 100 : 0,
-                    scale: log.isDeleting ? 0.9 : 1
+                  initial={{ opacity: 0, x: -12 }}
+                  animate={{
+                    opacity: log.isDeleting ? 0 : 1,
+                    x: log.isDeleting ? 60 : 0,
                   }}
-                  exit={{ opacity: 0, x: 100, scale: 0.9 }}
-                  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+                  exit={{ opacity: 0, x: 60 }}
+                  transition={{ duration: 0.2 }}
                   onClick={() => onRemove?.(log.id)}
-                  className={cn(
-                    'group relative flex items-start gap-3 p-3 rounded-xl',
-                    'border backdrop-blur-sm',
-                    'transition-all duration-300',
-                    'hover:scale-[1.02] cursor-pointer',
-                    config.bg,
-                    config.border,
-                    config.glow
-                  )}
+                  className="group flex items-start gap-2.5 p-2.5 rounded-lg bg-[#0e0e11] border border-white/[0.03] hover:border-white/[0.06] cursor-pointer transition-colors"
                 >
-                  {/* Icon */}
-                  <div className={cn(
-                    'p-2 rounded-lg shrink-0',
-                    'bg-black/20'
-                  )}>
-                    <Icon className={cn('w-4 h-4', config.color)} />
-                  </div>
-
-                  {/* Content */}
+                  <div
+                    className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
+                    style={{ backgroundColor: color }}
+                  />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span className={cn('text-sm font-semibold', config.color)}>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="text-xs font-medium"
+                        style={{ color }}
+                      >
                         {log.title}
                       </span>
-                      <span className="text-[10px] text-zinc-600 font-mono flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
+                      <span className="text-[10px] text-[#5c5c66] tabular-nums font-mono">
                         {log.timestamp.toLocaleTimeString()}
                       </span>
                     </div>
                     {log.message && (
-                      <p className="text-xs text-zinc-400 leading-relaxed line-clamp-2">
+                      <p className="text-xs text-[#7a7671] mt-0.5 leading-relaxed line-clamp-2">
                         {log.message}
                       </p>
                     )}
                   </div>
-
-                  {/* Hover indicator */}
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0 }}
-                    whileHover={{ opacity: 1, scale: 1 }}
-                    className="absolute top-2 right-2 w-5 h-5 rounded-full bg-rose-500/20 flex items-center justify-center"
-                  >
-                    <Trash2 className="w-3 h-3 text-rose-400" />
-                  </motion.div>
+                  <Trash2 className="w-3 h-3 text-[#5c5c66] opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-1" />
                 </motion.div>
               );
             })
           )}
         </AnimatePresence>
-      </div>
-
-      {/* Scanline effect */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl opacity-[0.02]">
-        <div className="absolute inset-0 bg-[linear-gradient(transparent_50%,_rgba(255,255,255,0.1)_50%)] bg-[length:100%_4px]" />
       </div>
     </div>
   );

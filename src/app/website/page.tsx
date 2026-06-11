@@ -1,146 +1,125 @@
-"use client";
+'use client';
 
-import { Download, Shield, Zap, Lock, Terminal, Github, ChevronRight, Activity, Users, EyeOff } from "lucide-react";
-import Image from "next/image";
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from 'react';
+import { motion } from 'framer-motion';
+import { Shield, Eye, Users, Zap, Ban, Database } from 'lucide-react';
 
-export default function Website() {
+export default function WebsitePage() {
     const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
+    useState(() => { setMounted(true); });
 
     if (!mounted) return null;
 
     return (
-        <div className="min-h-screen bg-[#09090b] text-zinc-100 overflow-x-hidden selection:bg-[#5865F2]/30 pt-8">
-
-            {/* Navbar MOCK (Tauri app hides it, so it's only visible on real browser view if we export it) 
-          But since we use the Tauri titlebar globally, it's better to keep the site clean of native navbars */}
-
-            {/* HERO SECTION */}
-            <section className="relative pt-32 pb-20 md:pt-48 md:pb-32 px-6 flex flex-col items-center justify-center text-center">
-                {/* Gradients */}
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[500px] bg-[#5865F2]/20 blur-[120px] rounded-full pointer-events-none" />
-                <div className="absolute top-1/3 left-1/4 w-[400px] h-[400px] bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none" />
-
-                <div className="relative z-10 flex flex-col items-center animate-in fade-in slide-in-from-bottom-8 duration-1000">
-                    <div className="flex items-center gap-3 mb-6 bg-white/5 border border-white/10 rounded-full px-4 py-1.5 backdrop-blur-sm">
-                        <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                        <span className="text-sm font-medium text-zinc-300">v0.1.0 Beta Released</span>
+        <main className="min-h-screen bg-[#070709] text-[#e8e6e3] selection:bg-[#e69a00]/20">
+            {/* Hero */}
+            <section className="relative flex flex-col items-center justify-center min-h-[80vh] px-6 pt-20 pb-16 text-center">
+                <motion.div
+                    initial={{ opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8 }}
+                    className="max-w-2xl mx-auto"
+                >
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 mb-8 rounded-full bg-white/[0.03] border border-white/[0.06] text-xs text-[#b9b5ae]">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#2d9e8a]" />
+                        v0.1.0 Beta
                     </div>
 
-                    <h1 className="text-5xl md:text-7xl font-extrabold tracking-tight max-w-4xl text-transparent bg-clip-text bg-gradient-to-br from-white via-white to-white/50 mb-8">
-                        Dominez Discord <br className="hidden md:block" /> dans l'Ombre.
+                    <h1 className="text-5xl font-bold tracking-tight leading-tight mb-4">
+                        Eclipse
                     </h1>
-
-                    <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mb-12">
-                        Eclipse est l'ultime client utilitaire furtif, propulsé par Rust et Tauri.
-                        Il s'intègre silencieusement comme un "Selfbot" ultra-sécurisé, offrant des fonctionnalités que même Discord ignore.
+                    <p className="text-lg text-[#7a7671] mb-8 max-w-md mx-auto leading-relaxed">
+                        Le toolkit Discord avancé. Rich Presence, animations, automatisation, le tout avec une âme.
                     </p>
 
-                    <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-                        <button className="flex items-center justify-center gap-2 bg-[#5865F2] hover:bg-[#4752C4] text-white px-8 py-4 rounded-xl font-bold transition-all hover:scale-105 shadow-xl shadow-[#5865F2]/25">
-                            <Download className="w-5 h-5" />
-                            Télécharger Eclipse
-                        </button>
-                        <button className="flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 text-white px-8 py-4 rounded-xl font-bold transition-all">
-                            <Terminal className="w-5 h-5" />
-                            Documentation API
-                        </button>
+                    <div className="flex items-center justify-center gap-3">
+                        <a href="eclipse://open" className="px-5 py-2.5 rounded-lg bg-[#e69a00] text-[#070709] font-medium text-sm hover:bg-amber-400 transition-colors">
+                            Télécharger
+                        </a>
+                        <a href="#features" className="px-5 py-2.5 rounded-lg bg-[#1e1e22] border border-white/[0.06] text-[#b9b5ae] font-medium text-sm hover:bg-[#252528] transition-colors">
+                            En savoir plus
+                        </a>
                     </div>
-                    <p className="mt-4 text-xs text-zinc-500">Pour Windows 10/11 (64-bit). Aucune installation requise.</p>
-                </div>
-            </section>
+                </motion.div>
 
-            {/* DASHBOARD PREVIEW */}
-            <section className="relative w-full max-w-6xl mx-auto px-6 py-12">
-                <div className="relative rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-1000 delay-300">
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent pointer-events-none z-10" />
-                    <div className="h-8 bg-[#111214] border-b border-white/5 flex items-center px-4 gap-2">
-                        <div className="w-3 h-3 rounded-full bg-red-500/80" />
-                        <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
-                        <div className="w-3 h-3 rounded-full bg-green-500/80" />
-                        <div className="ml-4 text-xs font-semibold text-zinc-500 tracking-widest uppercase">Eclipse Dashboard</div>
-                    </div>
-                    {/* Mockup Image - We can use a generic placeholder or dynamic block. */}
-                    <div className="aspect-video bg-zinc-900 flex items-center justify-center relative">
-                        <div className="absolute inset-0 bg-[url('https://transparenttextures.com/patterns/cubes.png')] opacity-[0.03]" />
-                        <Activity className="w-24 h-24 text-zinc-800 animate-pulse" />
-                    </div>
-                </div>
-            </section>
-
-            {/* FEATURES GRID */}
-            <section className="w-full max-w-7xl mx-auto px-6 py-32">
-                <div className="text-center mb-16">
-                    <h2 className="text-3xl md:text-5xl font-bold text-white mb-4">L'Avantage Concurrentiel</h2>
-                    <p className="text-zinc-400 max-w-2xl mx-auto">Conçu par des ingénieurs pour offrir le contrôle absolu sans jamais risquer l'intégrité de votre compte.</p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <FeatureCard
-                        icon={<EyeOff className="w-6 h-6 text-[#5865F2]" />}
-                        title="Totalement Furtif"
-                        desc="S'interface sans application tierce Discord. Les requêtes API n'apparaissent nulle part dans les historiques serveurs."
-                    />
-                    <FeatureCard
-                        icon={<Activity className="w-6 h-6 text-green-400" />}
-                        title="Espionnage Serveur"
-                        desc="Trackez les mouvements vocaux, suppressions de messages, et suppressions d'amis silencieusement en arrière-plan."
-                    />
-                    <FeatureCard
-                        icon={<Zap className="w-6 h-6 text-yellow-400" />}
-                        title="Modération & Trolls"
-                        desc="Arsenal complet : Reactroll furtif, Purge invisible (ZWSP), usurpation de Webhooks, et Fake Nitro Cards."
-                    />
-                    <FeatureCard
-                        icon={<Shield className="w-6 h-6 text-red-400" />}
-                        title="Anti-Raid / HackBan"
-                        desc="Bannissez des IDs n'étant même pas encore sur votre serveur. Action préventive absolue API."
-                    />
-                    <FeatureCard
-                        icon={<Lock className="w-6 h-6 text-indigo-400" />}
-                        title="Censure Absolue"
-                        desc="Retirez l'ownership des messages à n'importe quel membre (Delete + Renvoi via Webhook mimic)."
-                    />
-                    <FeatureCard
-                        icon={<Terminal className="w-6 h-6 text-teal-400" />}
-                        title="Local-First (SQLite)"
-                        desc="Pas de cloud. Le tracker historique génère une base de données en local gérée par Better-SQlite3."
-                    />
-                </div>
-            </section>
-
-            {/* FOOTER */}
-            <footer className="border-t border-white/10 bg-black pt-16 pb-8">
-                <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center">
-                            <Image src="/icon.png" alt="Eclipse" width={20} height={20} />
+                {/* Dashboard preview */}
+                <motion.div
+                    initial={{ opacity: 0, y: 40 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 0.4 }}
+                    className="mt-16 w-full max-w-3xl mx-auto"
+                >
+                    <div className="rounded-xl border border-white/[0.06] bg-[#0c0c0f] overflow-hidden">
+                        <div className="h-8 bg-[#0a0a0d] border-b border-white/[0.04] flex items-center px-4 gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#d4656b]/60" />
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#e69a00]/60" />
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#2d9e8a]/60" />
+                            <span className="ml-3 text-[10px] text-[#5c5c66] uppercase tracking-wider">Eclipse Dashboard</span>
                         </div>
-                        <span className="font-bold text-xl tracking-tight text-white">Eclipse <span className="text-zinc-500 font-normal">Project</span></span>
+                        <div className="p-8 flex items-center justify-center">
+                            <div className="text-center text-[#5c5c66]">
+                                <Database className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                                <p className="text-sm">Dashboard Preview</p>
+                            </div>
+                        </div>
                     </div>
-                    <p className="text-zinc-500 text-sm">© 2026 Antigravity Labs. Tous droits réservés.</p>
-                    <div className="flex gap-4">
-                        <Link href="#" className="text-zinc-500 hover:text-white transition-colors"><Github className="w-5 h-5" /></Link>
+                </motion.div>
+            </section>
+
+            {/* Features */}
+            <section id="features" className="py-20 px-6 max-w-5xl mx-auto">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ duration: 0.6 }}
+                    className="text-center mb-14"
+                >
+                    <h2 className="text-3xl font-bold mb-3">Tout ce dont vous avez besoin</h2>
+                    <p className="text-[#7a7671] max-w-md mx-auto">Un toolkit complet pour aller plus loin avec Discord.</p>
+                </motion.div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {[
+                        { icon: Shield, title: 'Furtif', desc: 'Réponses éphémères, mode invisible, aucune trace.', color: '#e69a00' },
+                        { icon: Eye, title: 'Espionnage', desc: 'Surveillez les membres, recevez des alertes en temps réel.', color: '#8b9dc3' },
+                        { icon: Users, title: 'Modération', desc: 'Kick, ban, lock — toutes les commandes à portée de main.', color: '#8b9dc3' },
+                        { icon: Zap, title: 'Anti-Raid', desc: 'Hackban préventif, détection de raid automatique.', color: '#d4656b' },
+                        { icon: Ban, title: 'Censure', desc: 'Reactroll, deletesend, autoreply — le contrôle total.', color: '#e69a00' },
+                        { icon: Database, title: 'Local-First', desc: 'Base SQLite locale, cache hors-ligne, backups JSON.', color: '#2d9e8a' },
+                    ].map(({ icon: Icon, title, desc, color }, i) => (
+                        <motion.div
+                            key={title}
+                            initial={{ opacity: 0, y: 16 }}
+                            whileInView={{ opacity: 1, y: 0 }}
+                            viewport={{ once: true }}
+                            transition={{ duration: 0.4, delay: i * 0.05 }}
+                            className="p-5 rounded-xl bg-[#0c0c0f] border border-white/[0.04] hover:border-white/[0.08] transition-colors"
+                        >
+                            <div className="w-9 h-9 rounded-lg bg-[#1e1e22] border border-white/[0.04] flex items-center justify-center mb-3">
+                                <Icon className="w-4 h-4" style={{ color }} />
+                            </div>
+                            <h3 className="font-semibold text-sm mb-1">{title}</h3>
+                            <p className="text-xs text-[#7a7671] leading-relaxed">{desc}</p>
+                        </motion.div>
+                    ))}
+                </div>
+            </section>
+
+            {/* Footer */}
+            <footer className="border-t border-white/[0.05] bg-[#0a0a0d] py-8 px-6">
+                <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 rounded-full bg-[#e69a00]/20 flex items-center justify-center">
+                            <div className="w-2.5 h-2.5 rounded-full bg-[#070709] border border-[#e69a00]/20" />
+                        </div>
+                        <span className="text-sm font-semibold">Eclipse</span>
                     </div>
+                    <p className="text-xs text-[#5c5c66]">
+                        &copy; 2026 Antigravity Labs
+                    </p>
                 </div>
             </footer>
-        </div>
-    );
-}
-
-function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
-    return (
-        <div className="p-6 rounded-2xl bg-white/[0.02] border border-white/5 hover:bg-white/[0.04] transition-colors group">
-            <div className="w-12 h-12 rounded-xl bg-white/[0.05] flex items-center justify-center mb-6 border border-white/5 group-hover:scale-110 transition-transform">
-                {icon}
-            </div>
-            <h3 className="text-xl font-bold text-zinc-100 mb-3">{title}</h3>
-            <p className="text-zinc-400 leading-relaxed">{desc}</p>
-        </div>
+        </main>
     );
 }

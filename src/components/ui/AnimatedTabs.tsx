@@ -16,7 +16,7 @@ interface AnimatedTabsProps {
   activeTab: string;
   onChange: (tabId: string) => void;
   orientation?: 'horizontal' | 'vertical';
-  variant?: 'pills' | 'underline' | 'glass';
+  variant?: 'pills' | 'underline' | 'surface';
 }
 
 export function AnimatedTabs({
@@ -24,7 +24,7 @@ export function AnimatedTabs({
   activeTab,
   onChange,
   orientation = 'horizontal',
-  variant = 'glass'
+  variant = 'surface'
 }: AnimatedTabsProps) {
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
@@ -34,9 +34,9 @@ export function AnimatedTabs({
     <div
       className={cn(
         'relative flex',
-        isVertical ? 'flex-col gap-1' : 'flex-row gap-1 p-1',
-        variant === 'glass' && 'bg-white/[0.03] backdrop-blur-xl rounded-2xl border border-white/[0.08]',
-        variant === 'pills' && 'bg-zinc-900/50 rounded-full p-1'
+        isVertical ? 'flex-col gap-0.5' : 'flex-row gap-1 p-1',
+        variant === 'surface' && 'bg-[#0c0c0f] rounded-xl border border-white/[0.04]',
+        variant === 'pills' && 'bg-[#0c0c0f] rounded-full p-1'
       )}
     >
       {tabs.map((tab) => {
@@ -50,75 +50,63 @@ export function AnimatedTabs({
             onMouseEnter={() => setHoveredTab(tab.id)}
             onMouseLeave={() => setHoveredTab(null)}
             className={cn(
-              'relative flex items-center gap-2 px-4 py-2.5 rounded-xl',
-              'text-sm font-medium transition-colors duration-200',
-              'outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/50',
+              'relative flex items-center gap-2 px-3.5 py-2 rounded-lg',
+              'text-sm font-medium transition-colors duration-150',
+              'outline-none focus-visible:ring-2 focus-visible:ring-[#e69a00]/30',
               isVertical && 'w-full justify-start',
               variant === 'underline' && 'rounded-none border-b-2',
-              variant === 'glass' && (isActive ? 'text-white' : 'text-zinc-400 hover:text-zinc-200'),
-              variant === 'pills' && (isActive ? 'text-white' : 'text-zinc-400'),
-              variant === 'underline' && (isActive ? 'text-white border-indigo-500' : 'text-zinc-400 border-transparent hover:text-zinc-200')
+              variant === 'surface' && (isActive ? 'text-[#e8e6e3]' : 'text-[#5c5c66] hover:text-[#b9b5ae]'),
+              variant === 'pills' && (isActive ? 'text-[#070709]' : 'text-[#5c5c66]'),
+              variant === 'underline' && (isActive ? 'text-[#e8e6e3] border-[#e69a00]' : 'text-[#5c5c66] border-transparent hover:text-[#b9b5ae]')
             )}
           >
-            {/* Active background */}
             {isActive && variant !== 'underline' && (
               <motion.div
                 layoutId="activeTab"
                 className={cn(
-                  'absolute inset-0 rounded-xl',
-                  variant === 'glass' && 'bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30',
-                  variant === 'pills' && 'bg-indigo-600'
+                  'absolute inset-0 rounded-lg',
+                  variant === 'surface' && 'bg-[#1e1e22] border border-white/[0.05]',
+                  variant === 'pills' && 'bg-[#e69a00]'
                 )}
                 initial={false}
-                transition={{ type: 'spring', bounce: 0.2, duration: 0.6 }}
+                transition={{ type: 'spring', bounce: 0.15, duration: 0.5 }}
               />
             )}
 
-            {/* Hover effect */}
-            {!isActive && variant === 'glass' && (
+            {!isActive && variant === 'surface' && (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: isHovered ? 1 : 0 }}
-                className="absolute inset-0 rounded-xl bg-white/[0.05]"
+                className="absolute inset-0 rounded-lg bg-white/[0.03]"
               />
             )}
 
-            {/* Icon */}
             {tab.icon && (
               <motion.span
-                animate={{ scale: isActive ? 1.1 : 1 }}
+                animate={{ scale: isActive ? 1.05 : 1 }}
                 className="relative z-10"
               >
                 {tab.icon}
               </motion.span>
             )}
 
-            {/* Label */}
             <span className="relative z-10">{tab.label}</span>
 
-            {/* Badge */}
             {tab.badge !== undefined && tab.badge > 0 && (
-              <motion.span
-                initial={{ scale: 0 }}
-                animate={{ scale: 1 }}
+              <span
                 className={cn(
                   'relative z-10 min-w-[18px] h-[18px] px-1.5',
                   'flex items-center justify-center',
                   'text-[10px] font-bold rounded-full',
-                  isActive ? 'bg-white/20 text-white' : 'bg-indigo-500/20 text-indigo-400'
+                  isActive
+                    ? variant === 'pills'
+                      ? 'bg-[#070709]/20 text-[#070709]'
+                      : 'bg-white/[0.08] text-[#e8e6e3]'
+                    : 'bg-white/[0.04] text-[#5c5c66]'
                 )}
               >
                 {tab.badge > 99 ? '99+' : tab.badge}
-              </motion.span>
-            )}
-
-            {/* Glow effect for active */}
-            {isActive && variant === 'glass' && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="absolute inset-0 rounded-xl bg-indigo-500/20 blur-xl -z-10"
-              />
+              </span>
             )}
           </motion.button>
         );
