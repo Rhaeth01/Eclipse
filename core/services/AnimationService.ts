@@ -3,7 +3,7 @@
  * Évite la duplication de code entre les animations simples et RPC
  */
 
-import { Client } from 'discord.js-selfbot-v13';
+import { DiscordUserClient } from '../discord/DiscordUserClient';
 import { logger } from './Logger';
 import { AnimationFrame, RpcFrame } from '../shared/types';
 
@@ -15,11 +15,11 @@ interface AnimationState {
 }
 
 export class AnimationService {
-  private client: Client | null = null;
+  private client: DiscordUserClient | null = null;
   private customStatusAnimation: AnimationState | null = null;
   private rpcAnimation: AnimationState | null = null;
 
-  setClient(client: Client | null): void {
+  setClient(client: DiscordUserClient | null): void {
     this.client = client;
   }
 
@@ -105,15 +105,12 @@ export class AnimationService {
 
     logger.info('Animation', `Démarrage RPC Rotator (${frames.length} frames, ${delayMs}ms)`);
 
-    // Import dynamique pour éviter les problèmes si le module n'est pas dispo
-    const { RichPresence } = await import('discord.js-selfbot-v13');
-
     let index = 0;
 
     const tick = async () => {
       const rpcData = frames[index];
       try {
-        await this.applyRpcFrame(rpcData, RichPresence);
+        await this.applyRpcFrame(rpcData);
       } catch (err) {
         logger.error('Animation', 'Erreur tick RPC', err);
       }
@@ -159,8 +156,7 @@ export class AnimationService {
       throw new Error('Client Discord non connecté');
     }
 
-    const { RichPresence } = await import('discord.js-selfbot-v13');
-    await this.applyRpcFrame(frame, RichPresence);
+    await this.applyRpcFrame(frame);
 
     logger.info('Animation', 'Rich Presence mise à jour');
   }
@@ -180,10 +176,7 @@ export class AnimationService {
     logger.info('Animation', 'Rich Presence désactivée');
   }
 
-  private async applyRpcFrame(
-    data: RpcFrame,
-    RichPresenceClass: typeof import('discord.js-selfbot-v13').RichPresence
-  ): Promise<void> {
+  private async applyRpcFrame(data: RpcFrame): Promise<void> {
     if (!this.client?.user) return;
 
     // Mode Custom Status simple

@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Client } from 'discord.js-selfbot-v13';
+import { DiscordUserClient } from '../discord';
 import { logger } from './Logger';
 
 export interface BackupData {
@@ -54,7 +54,7 @@ export class BackupService {
     }
   }
 
-  async createBackup(client: Client): Promise<BackupResult> {
+  async createBackup(client: DiscordUserClient): Promise<BackupResult> {
     if (!client.user) {
       throw new Error('Client non connecté');
     }
@@ -96,7 +96,7 @@ export class BackupService {
     };
   }
 
-  private collectFriends(client: Client): BackupData['friends'] {
+  private collectFriends(client: DiscordUserClient): BackupData['friends'] {
     const friends: BackupData['friends'] = [];
     
     try {
@@ -127,7 +127,7 @@ export class BackupService {
     return friends;
   }
 
-  private collectGuilds(client: Client): BackupData['guilds'] {
+  private collectGuilds(client: DiscordUserClient): BackupData['guilds'] {
     const guilds: BackupData['guilds'] = [];
 
     try {
@@ -147,7 +147,7 @@ export class BackupService {
     return guilds;
   }
 
-  private collectChannels(client: Client): BackupData['channels'] {
+  private collectChannels(client: DiscordUserClient): BackupData['channels'] {
     const channels: BackupData['channels'] = [];
 
     try {

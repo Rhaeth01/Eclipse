@@ -159,10 +159,9 @@ export class TrollService extends EventEmitter {
       try {
         await sendTypingFn();
       } catch {
-        // Arrêter en cas d'erreur
         this.stopTyping(channelId);
       }
-    }, 8000); // Discord reset l'indicateur toutes les 8-10s
+    }, 7000 + Math.random() * 2000); // Discord reset l'indicateur toutes les 8-10s, on varie
 
     this.typingChannels.set(channelId, interval);
     

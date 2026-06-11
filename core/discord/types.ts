@@ -10,7 +10,7 @@ import { EventEmitter } from "events";
 // ============================================================================
 
 export const PermissionsFlags = {
-  SEND_MESSAGES: 2048n,
+  SEND_MESSAGES: BigInt(2048),
 } as const;
 
 export class Permissions {
@@ -46,6 +46,7 @@ export interface IUser {
 
 export interface IGuildMember {
   id: string;
+  joinedTimestamp: number | null;
   displayAvatarURL(options?: { size?: number }): string;
   kick(reason?: string): Promise<void>;
   roles: { cache: Map<string, { id: string; name: string; color: number }> };
@@ -59,6 +60,8 @@ export interface IMessageMentions {
   users: {
     first(): IUser | undefined;
     has(userId: string): boolean;
+    size: number;
+    at(index: number): IUser | undefined;
   };
 }
 
@@ -115,7 +118,7 @@ export interface IChannel {
   parent: IChannel | null;
   recipients?: Array<{ id: string }>;
   guild?: IGuild;
-  send(content: string | { content?: string; tts?: boolean; embeds?: any[]; components?: any[] }): Promise<IMessage>;
+  send(content: string | { content?: string; tts?: boolean; embeds?: any[]; components?: any[]; message_reference?: { message_id: string } }): Promise<IMessage>;
   sendTyping(): Promise<void>;
   permissionsFor(userId: string): Permissions | null;
   messages: {
@@ -134,6 +137,7 @@ export interface IChannel {
 export interface IGuild {
   id: string;
   name: string;
+  createdTimestamp: number;
   iconURL(): string | undefined;
   ownerId: string;
   memberCount: number;
@@ -180,6 +184,7 @@ export interface IClientUser {
   id: string;
   tag: string;
   username: string;
+  bot: false;
   createdTimestamp: number;
   displayAvatarURL(options?: { size?: number }): string;
   setPresence(data: {
@@ -253,7 +258,10 @@ export interface SelfbotClientEvents {
 
 export interface IDiscordUserClient extends EventEmitter {
   user: IClientUser | null;
-  guilds: { cache: Map<string, IGuild> };
+  guilds: {
+    cache: Map<string, IGuild>;
+    fetch(guildId: string): Promise<IGuild>;
+  };
   channels: { cache: Map<string, IChannel>; fetch(id: string): Promise<IChannel | undefined> };
   relationships: {
     friendCache: Map<string, any>;

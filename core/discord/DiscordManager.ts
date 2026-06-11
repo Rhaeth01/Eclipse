@@ -4,13 +4,13 @@
  */
 
 import {
-  Client as SelfbotClient,
-  TextChannel,
-  Message,
-  VoiceState,
-  GuildMember,
-  Message as DiscordMessage
-} from 'discord.js-selfbot-v13';
+  DiscordUserClient,
+  IMessage,
+  IChannel,
+  IGuildMember,
+  IVoiceState,
+} from '.';
+import { DiscordREST } from './DiscordREST';
 import {
   Client as BotClient,
   GatewayIntentBits,
@@ -68,7 +68,7 @@ export interface DiscordEvents {
 }
 
 export class DiscordManager extends EventEmitter {
-  private selfbot: SelfbotClient | null = null;
+  private selfbot: DiscordUserClient | null = null;
   private appBot: BotClient | null = null;
   private config: DiscordConfig | null = null;
   private wsService: WebSocketService;
@@ -161,14 +161,10 @@ export class DiscordManager extends EventEmitter {
   // ============================================================================
 
   private async initSelfbot(token: string): Promise<void> {
-    this.selfbot = new SelfbotClient({
-      ws: {
-        properties: {
+    this.selfbot = new DiscordUserClient({
           os: 'Windows',
           browser: 'Discord Client',
           device: 'desktop'
-        }
-      }
     });
 
     this.setupSelfbotEvents();
@@ -306,12 +302,12 @@ export class DiscordManager extends EventEmitter {
       this.handleMessageUpdate(oldMsg, newMsg);
     });
 
-    this.selfbot.on('messageCreate', (msg: Message) => {
+    this.selfbot.on('messageCreate', (msg: IMessage) => {
       this.handleMessageCreate(msg);
     });
 
     // Vocal
-    this.selfbot.on('voiceStateUpdate', (oldState: VoiceState, newState: VoiceState) => {
+    this.selfbot.on('voiceStateUpdate', (oldState: IVoiceState, newState: IVoiceState) => {
       this.handleVoiceStateUpdate(oldState, newState);
     });
   }
@@ -804,6 +800,7 @@ export class DiscordManager extends EventEmitter {
           }
           const ghostMsg = await (channel as any).send(`${target}`);
           if (ghostMsg) {
+            await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
             await ghostMsg.delete();
             await interaction.reply({ content: `👻 Ghostping envoyé à ${target.tag}`, ephemeral: true });
           }
@@ -1617,9 +1614,10 @@ export class DiscordManager extends EventEmitter {
             await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
             return;
           }
-          const ghostMsg = await (channel as any).send(`${targetUser}`);
-          if (ghostMsg) {
-            await ghostMsg.delete();
+          const ghostMsg2 = await (channel as any).send(`${targetUser}`);
+          if (ghostMsg2) {
+            await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
+            await ghostMsg2.delete();
             await interaction.reply({ content: `👻 Ghostping envoyé à ${targetUser.tag}`, ephemeral: true });
           }
           break;
@@ -1661,7 +1659,7 @@ export class DiscordManager extends EventEmitter {
   // EVENT HANDLERS
   // ============================================================================
 
-  private handleMessageDelete(msg: DiscordMessage): void {
+  private handleMessageDelete(msg: IMessage): void {
     if (!msg.author || msg.author.bot) return;
 
     // Snipe cache
@@ -1684,13 +1682,13 @@ export class DiscordManager extends EventEmitter {
 
       this.broadcastNotification(
         actionType,
-        `Message de ${msg.author.tag} dans #${(msg.channel as TextChannel).name || 'DM'}\n"${msg.content || '[Contenu illisible ou embed]'}"`,
+        `Message de ${msg.author.tag} dans #${msg.channel.name || 'DM'}\n"${msg.content || '[Contenu illisible ou embed]'}"`,
         title
       );
     }
   }
 
-  private handleMessageUpdate(oldMsg: DiscordMessage, newMsg: DiscordMessage): void {
+  private handleMessageUpdate(oldMsg: IMessage, newMsg: IMessage): void {
     if (!oldMsg.author || oldMsg.author.bot || oldMsg.content === newMsg.content) return;
 
     if (oldMsg.channel.id) {
@@ -1702,7 +1700,7 @@ export class DiscordManager extends EventEmitter {
     }
   }
 
-  private handleMessageCreate(msg: Message): void {
+  private handleMessageCreate(msg: IMessage): void {
     // Ignorer les bots
     if (msg.author.bot) return;
 
@@ -1722,7 +1720,7 @@ export class DiscordManager extends EventEmitter {
     if (this.globalAfkMessage && msg.mentions.users.has(this.selfbot.user.id) && msg.channel.isText()) {
       setTimeout(() => {
         msg.reply(`💤 **AFK** : ${this.globalAfkMessage}`).catch(() => { });
-      }, 1200);
+      }, 800 + Math.random() * 1200);
     }
 
     // Trolls avec Rate Limiting
@@ -1793,13 +1791,13 @@ export class DiscordManager extends EventEmitter {
     if (spyGuilds && msg.guild && spyGuilds.has(msg.guild.id)) {
       this.broadcastNotification(
         'spy_message',
-        `Message de ${msg.author.tag} dans #${(msg.channel as TextChannel).name}\n"${msg.content || '[Contenu illisible]'}"`,
+        `Message de ${msg.author.tag} dans #${msg.channel.name}\n"${msg.content || '[Contenu illisible]'}"`,
         '👁️ Nouveau message (Cible)'
       );
     }
   }
 
-  private handleVoiceStateUpdate(oldState: VoiceState, newState: VoiceState): void {
+  private handleVoiceStateUpdate(oldState: IVoiceState, newState: IVoiceState): void {
     if (!newState.member || newState.member.user.bot) return;
 
     const spyGuilds = this.spyService.getUserGuilds(newState.member.id);
@@ -1838,7 +1836,7 @@ export class DiscordManager extends EventEmitter {
 
     try {
       const friends = this.getFriends();
-      const guilds = this.selfbot.guilds.cache.map(g => ({ id: g.id, name: g.name }));
+      const guilds = Array.from(this.selfbot.guilds.cache.values()).map(g => ({ id: g.id, name: g.name }));
 
       const friendDiff = this.dbService.compareFriends(friends);
       const guildDiff = this.dbService.compareGuilds(guilds);
@@ -1932,9 +1930,9 @@ export class DiscordManager extends EventEmitter {
       async () => {
         const channel = await this.selfbot?.channels.fetch(channelId);
         if (channel?.isText()) {
-          const message = await (channel as TextChannel).messages.fetch(messageId);
-          if (message) {
-            await message.delete();
+          const message = await channel.messages.fetch(messageId);
+          if (message && !Array.isArray(message) && !(message instanceof Map)) {
+            await (message as IMessage).delete();
           }
         }
       },
@@ -1945,13 +1943,13 @@ export class DiscordManager extends EventEmitter {
   /**
    * Envoie un message avec rate limiting
    */
-  async sendMessage(channelId: string, content: string): Promise<Message | void> {
+  async sendMessage(channelId: string, content: string): Promise<IMessage | void> {
     return rateLimiter.schedule(
       `channels/${channelId}/messages`,
       async () => {
         const channel = await this.selfbot?.channels.fetch(channelId);
         if (channel?.isText()) {
-          return await (channel as TextChannel).send(content);
+          return await channel.send(content);
         }
       },
       5 // Priorité moyenne
@@ -2016,7 +2014,7 @@ export class DiscordManager extends EventEmitter {
       async () => {
         const channel = await this.selfbot?.channels.fetch(channelId);
         if (channel?.isText()) {
-          return await (channel as TextChannel).createWebhook(name, { avatar });
+          return await channel.createWebhook(name, { avatar });
         }
       },
       6
@@ -2043,8 +2041,12 @@ export class DiscordManager extends EventEmitter {
   // GETTERS
   // ============================================================================
 
-  getSelfbot(): SelfbotClient | null {
+  getSelfbot(): DiscordUserClient | null {
     return this.selfbot;
+  }
+
+  getRest(): DiscordREST | null {
+    return this.selfbot?.getRest() || null;
   }
 
   getSnipeCache(): Map<string, { content: string; author: string; timestamp: number }> {

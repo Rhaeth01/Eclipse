@@ -35,7 +35,10 @@ export class DiscordUserClient
   implements IDiscordUserClient
 {
   public user: IClientUser | null = null;
-  public guilds: { cache: Map<string, IGuild> };
+  public guilds: {
+    cache: Map<string, IGuild>;
+    fetch: (guildId: string) => Promise<IGuild>;
+  };
   public channels: {
     cache: Map<string, IChannel>;
     fetch(id: string): Promise<IChannel | undefined>;
@@ -69,7 +72,10 @@ export class DiscordUserClient
     this.rest = new DiscordREST(properties);
     this.gateway = new DiscordGateway(properties);
 
-    this.guilds = { cache: this.guildCache };
+    this.guilds = {
+      cache: this.guildCache,
+      fetch: (guildId: string) => this.fetchGuild(guildId),
+    };
     this.users = { cache: this.userCache };
     this.relationships = {
       friendCache: this.friendCache,
@@ -171,6 +177,7 @@ export class DiscordUserClient
     this.user = {
       id: profile.id,
       username: profile.username,
+      bot: false as const,
       tag: makeTag(profile.username, profile.discriminator || "0"),
       createdTimestamp: 0,
       displayAvatarURL: (options?: any) => {
@@ -387,6 +394,18 @@ export class DiscordUserClient
     }
   }
 
+  async fetchGuild(guildId: string): Promise<IGuild> {
+    if (this.guildCache.has(guildId)) {
+      return this.guildCache.get(guildId)!;
+    }
+    const guilds = await this.rest.fetchGuilds();
+    const found = guilds.find((g: any) => g.id === guildId);
+    if (!found) throw new Error(`Guild ${guildId} not found`);
+    const guild = this.buildGuild(found);
+    this.guildCache.set(guildId, guild);
+    return guild;
+  }
+
   // ==========================================================================
   // OBJECT BUILDERS
   // ==========================================================================
@@ -450,8 +469,8 @@ export class DiscordUserClient
       },
       permissionsFor: (userId: string) => {
         const perm = raw.permission_overwrites
-          ? 0n // simplified
-          : 1024n; // default SEND_MESSAGES
+          ? BigInt(0)
+          : BigInt(1024);
         return new Permissions(perm);
       },
       messages: {
@@ -492,6 +511,9 @@ export class DiscordUserClient
     const guild: IGuild = {
       id: raw.id,
       name: raw.name || "Unknown",
+      createdTimestamp: raw.id
+        ? Math.floor(((parseInt(raw.id) >> 22) + 1420070400000) / 4194304)
+        : 0,
       iconURL: () => {
         if (!raw.icon) return undefined;
         const ext = raw.icon.startsWith("a_") ? "gif" : "png";
@@ -529,6 +551,7 @@ export class DiscordUserClient
     const rest = this.rest;
     const member: IGuildMember = {
       id: raw.user?.id || raw.id,
+      joinedTimestamp: raw.joined_at ? Date.parse(raw.joined_at) : null,
       displayAvatarURL: (options?: any) => {
         const avatar = raw.avatar || raw.user?.avatar;
         if (!avatar) return "";
@@ -570,6 +593,11 @@ export class DiscordUserClient
           has: (userId: string) => {
             return raw.mentions?.some((m: any) => m.id === userId) || false;
           },
+          size: (raw.mentions || []).length,
+          at: (index: number) => {
+            const m = raw.mentions?.[index];
+            return m ? { id: m.id, username: m.username || "Unknown", tag: m.username || "Unknown#0000", bot: m.bot || false, createdTimestamp: 0, displayAvatarURL: () => "", send: async () => { throw new Error("not implemented"); } } as IUser : undefined;
+          },
         },
       },
       deletable: raw.author?.id === this.user?.id || false,
@@ -609,7 +637,7 @@ export class DiscordUserClient
         const data = await rest.sendMessage(raw.channel_id || msg.channelId, {
           content,
           message_reference: { message_id: raw.id },
-        });
+        } as any);
         return buildMsg({ ...data, channel_id: raw.channel_id, guild_id: raw.guild_id });
       },
     };

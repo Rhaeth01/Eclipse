@@ -380,8 +380,9 @@ export class EclipseCore {
       },
       redeemNitro: async (code) => {
         try {
-          // Utilise l'API Discord pour redeem le code
-          await (selfbot as any).api.post('/entitlements/gift-codes/' + code + '/redeem');
+          const rest = this.discordManager.getRest();
+          if (!rest) throw new Error('REST client not available');
+          await rest.redeemNitro(code);
           return { success: true, message: 'Nitro redeemed!' };
         } catch (err: any) {
           return { success: false, message: err.message };
@@ -435,36 +436,29 @@ export class EclipseCore {
         }
 
         if (commandName === 'bump') {
-          // Utilise l'API REST directe pour exécuter /bump
-          // Disboard app ID: 302050872383242240
           const disboardAppId = '302050872383242240';
+          const rest = this.discordManager.getRest();
 
-          try {
-            // Essaie d'abord avec sendSlash (méthode discord.js-selfbot-v13)
-            await (channel as any).sendSlash(disboardAppId, 'bump');
-          } catch (err) {
-            // Fallback: requête API manuelle
-            logger.warn('AutoSlash', 'sendSlash failed, using manual API call');
-
-            const nonce = Math.floor(Math.random() * 1000000000).toString();
-            await (selfbot as any).api.interactions.post({
-              body: {
-                type: 2, // APPLICATION_COMMAND
-                application_id: disboardAppId,
-                guild_id: guildId,
-                channel_id: channelId,
-                session_id: selfbot.sessionId || '0',
-                data: {
-                  version: 1,
-                  id: '947288324167376897', // Disboard bump command ID
-                  name: 'bump',
-                  type: 1,
-                  options: []
-                },
-                nonce
-              }
-            });
+          if (!rest) {
+            throw new Error('REST client not available');
           }
+
+          const nonce = Math.floor(Math.random() * 1000000000).toString();
+          await rest.sendInteraction({
+            type: 2,
+            application_id: disboardAppId,
+            guild_id: guildId,
+            channel_id: channelId,
+            session_id: selfbot.sessionId ?? '0',
+            data: {
+              version: 1,
+              id: '947288324167376897',
+              name: 'bump',
+              type: 1,
+              options: []
+            },
+            nonce
+          });
         }
       }
     });

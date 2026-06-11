@@ -1,4 +1,4 @@
-import { Client } from 'discord.js-selfbot-v13';
+import { DiscordUserClient } from './discord';
 import * as fs from 'fs-extra';
 import * as path from 'path';
 
@@ -21,7 +21,7 @@ export interface BackupData {
     timestamp: number;
 }
 
-export async function createAccountBackup(client: Client, backupDir: string): Promise<string> {
+export async function createAccountBackup(client: DiscordUserClient, backupDir: string): Promise<string> {
     if (!client.user) throw new Error("Client non authentifié.");
 
     console.log(`[Backup] Démarrage de la sauvegarde pour ${client.user.tag}...`);
@@ -41,11 +41,12 @@ export async function createAccountBackup(client: Client, backupDir: string): Pr
     // 1. Récupération des Relations (Amis / Bloqués)
     // discord.js-selfbot-v13 offre l'accès direct via client.relationships
     if (client.relationships) {
-        client.relationships.cache.forEach((rel: any, id: string) => {
+        client.relationships.cache.forEach((rel, id: string) => {
             const userRef = client.users.cache.get(id);
+            const relType = typeof rel === 'number' ? rel : rel.type;
             if (userRef) {
-                if (rel === 1) data.friends.push({ id: userRef.id, tag: userRef.tag });
-                if (rel === 2) data.blocked.push({ id: userRef.id, tag: userRef.tag });
+                if (relType === 1) data.friends.push({ id: userRef.id, tag: userRef.tag });
+                if (relType === 2) data.blocked.push({ id: userRef.id, tag: userRef.tag });
             }
         });
     }

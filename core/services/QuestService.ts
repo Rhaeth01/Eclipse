@@ -64,47 +64,18 @@ export class QuestService {
    */
   async fetchAvailableQuests(): Promise<DiscordQuest[]> {
     try {
-      const selfbot = this.discordManager.getSelfbot();
-      if (!selfbot) {
-        throw new Error('Selfbot non connecté');
+      const rest = this.discordManager.getRest();
+      if (!rest) {
+        throw new Error('REST client non disponible');
       }
 
       logger.info('QuestService', 'Fetching quests from Discord API...');
 
-      // Essaie plusieurs endpoints car Discord change souvent
-      let response: any;
-      let endpointUsed = '';
-
-      // Endpoint 1: /users/@me/quests (nouveau)
-      try {
-        response = await (selfbot as any).api.users('@me').quests.get();
-        endpointUsed = '/users/@me/quests';
-      } catch (e1: any) {
-        logger.warn('QuestService', `Endpoint 1 failed: ${e1.message}`);
-        
-        // Endpoint 2: /quests (ancien)
-        try {
-          response = await (selfbot as any).api.quests.get();
-          endpointUsed = '/quests';
-        } catch (e2: any) {
-          logger.warn('QuestService', `Endpoint 2 failed: ${e2.message}`);
-          
-          // Endpoint 3: Requête directe avec options
-          try {
-            response = await (selfbot as any).api.get('/users/@me/quests', {
-              headers: {
-                'X-Super-Properties': (selfbot as any).options?.ws?.properties || {}
-              }
-            });
-            endpointUsed = '/users/@me/quests (direct)';
-          } catch (e3: any) {
-            logger.error('QuestService', `All endpoints failed. Last error: ${e3.message}`);
-            throw new Error('Discord API Quests endpoint not available (404)');
-          }
-        }
+      const response = await rest.getQuests();
+      if (!response) {
+        throw new Error('Aucune réponse de l\'API quests');
       }
 
-      logger.info('QuestService', `Using endpoint: ${endpointUsed}`);
       logger.info('QuestService', `Raw response type: ${typeof response}`);
       logger.info('QuestService', `Is Array: ${Array.isArray(response)}`);
       
@@ -158,10 +129,10 @@ export class QuestService {
    */
   async acceptQuest(questId: string): Promise<boolean> {
     try {
-      const selfbot = this.discordManager.getSelfbot();
-      if (!selfbot) return false;
+      const rest = this.discordManager.getRest();
+      if (!rest) return false;
 
-      await (selfbot as any).api.quests(questId).accept.post();
+      await rest.acceptQuest(questId);
       logger.info('QuestService', `Quête ${questId} acceptée`);
       
       // Re-fetch les quêtes pour avoir les données à jour
@@ -253,12 +224,13 @@ export class QuestService {
         elapsed += heartbeatInterval;
         
         // Envoie le heartbeat à l'API Discord
-        await (selfbot as any).api.quests(quest.id).heartbeat.post({
-          body: {
+        const rest = this.discordManager.getRest();
+        if (rest) {
+          await rest.heartbeatQuest(quest.id, {
             videoId: quest.targetVideo!.id,
             timestamp: elapsed
-          }
-        });
+          });
+        }
 
         this.broadcastProgress(quest.id, elapsed, duration);
 
@@ -324,10 +296,10 @@ export class QuestService {
   private monitorQuestProgress(quest: DiscordQuest): void {
     const interval = setInterval(async () => {
       try {
-        const selfbot = this.discordManager.getSelfbot();
-        if (!selfbot) return;
+        const rest = this.discordManager.getRest();
+        if (!rest) return;
 
-        const response = await (selfbot as any).api.users('@me').quests.get();
+        const response = await rest.getQuests();
         const updatedQuest = response.find((q: any) => q.id === quest.id);
         
         if (updatedQuest) {
@@ -360,10 +332,10 @@ export class QuestService {
    */
   async claimReward(questId: string): Promise<boolean> {
     try {
-      const selfbot = this.discordManager.getSelfbot();
-      if (!selfbot) return false;
+      const rest = this.discordManager.getRest();
+      if (!rest) return false;
 
-      await (selfbot as any).api.quests(questId).claim_reward.post();
+      await rest.claimQuestReward(questId);
       logger.info('QuestService', `Récompense réclamée pour quête ${questId}`);
       
       this.broadcastToast('Quest Complétée!', 'Récompense réclamée avec succès');

@@ -206,7 +206,9 @@ export class SniperService extends EventEmitter {
 
   private async joinGiveaway(message: any, giveaway: GiveawayInfo): Promise<void> {
     try {
-      // Essaie de réagir avec l'emoji 🎉 (le plus commun)
+      // Délai aléatoire pour simuler un humain qui lit le message
+      await new Promise(r => setTimeout(r, 500 + Math.random() * 2000));
+
       await rateLimiter.schedule(
         `channels/${giveaway.channelId}/messages/${giveaway.messageId}/reactions`,
         async () => {

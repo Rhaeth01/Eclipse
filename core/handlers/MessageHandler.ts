@@ -15,7 +15,7 @@ import { logger } from '../services/Logger';
 import type { WsMessage, ErrorMessage, StatusMessage, ToastMessage, NotificationMessage, WsBaseMessage, AutobumpStatusMessage } from '../shared/types';
 import * as schemas from '../shared/schemas';
 import { rateLimiter } from '../services/RateLimiter';
-import { Client as SelfbotClient, Permissions } from 'discord.js-selfbot-v13';
+import { DiscordUserClient, Permissions } from '../discord';
 import type { z } from 'zod';
 
 export interface MessageHandlerContext {
@@ -27,7 +27,7 @@ export interface MessageHandlerContext {
   trollService: TrollService;
   stateService: StateService;
   autoSlashService: AutoSlashService;
-  discordClient: SelfbotClient | null;
+  discordClient: DiscordUserClient | null;
   getCommandStealth: () => boolean;
   setCommandStealth: (value: boolean) => void;
   getSilentTyping: () => boolean;

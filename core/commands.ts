@@ -1,11 +1,11 @@
-import { Client, Message, TextChannel, Permissions, DMChannel } from 'discord.js-selfbot-v13';
+import { DiscordUserClient, IMessage, IChannel, Permissions } from './discord';
 
 // Définition de la structure d'une commande
 export interface Command {
     name: string;
     description: string;
     usage: string;
-    execute: (client: Client, message: Message, args: string[]) => Promise<void>;
+    execute: (client: DiscordUserClient, message: IMessage, args: string[]) => Promise<void>;
 }
 
 export class CommandManager {
@@ -100,11 +100,12 @@ export class CommandManager {
 
                 try {
                     const messages = await message.channel.messages.fetch({ limit: 100 });
-                    const myMessages = messages.filter(m => m.author.id === client.user?.id).first(count);
+                    const msgArray = Array.from(messages instanceof Map ? messages.values() : [messages]);
+                    const myMessages = msgArray.filter(m => m.author.id === client.user?.id).slice(0, count);
 
                     for (const m of myMessages) {
                         await m.delete().catch(() => { });
-                        await new Promise(r => setTimeout(r, 600));
+                        await new Promise(r => setTimeout(r, 500 + Math.random() * 200));
                     }
                 } catch (e) {
                     console.error("[Command] Erreur clear :", e);
@@ -131,14 +132,15 @@ export class CommandManager {
                 }
 
                 try {
-                    const channel = message.channel as TextChannel;
+                    const channel = message.channel;
                     const messages = await channel.messages.fetch({ limit: 100 });
-                    const targetMessages = messages.filter(m => m.author.id === target.id).first(count);
+                    const msgArray = Array.from(messages instanceof Map ? messages.values() : [messages]);
+                    const targetMessages = msgArray.filter(m => m.author.id === target.id).slice(0, count);
 
                     // Supprime un par un car bulkDelete nécessite des permissions
                     for (const m of targetMessages) {
                         await m.delete().catch(() => { });
-                        await new Promise(r => setTimeout(r, 500));
+                        await new Promise(r => setTimeout(r, 400 + Math.random() * 200));
                     }
 
                     await message.delete().catch(() => { });
@@ -168,11 +170,11 @@ export class CommandManager {
                 }
 
                 try {
-                    let targetChannel = message.channel as TextChannel;
+                    let targetChannel: IChannel = message.channel;
                     let threadId: string | undefined = undefined;
 
                     if (message.channel.isThread()) {
-                        targetChannel = message.channel.parent as TextChannel;
+                        targetChannel = message.channel.parent || message.channel;
                         threadId = message.channel.id;
                     }
 
@@ -207,7 +209,7 @@ export class CommandManager {
 
                 for (let i = 0; i < count; i++) {
                     await message.channel.send(spamText).catch(() => { });
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
                 }
             }
         });
@@ -225,7 +227,8 @@ export class CommandManager {
 
                 try {
                     const messages = await message.channel.messages.fetch({ limit: 2 });
-                    const targetMessage = messages.find(m => m.id !== message.id);
+                    const msgArray = Array.from(messages instanceof Map ? messages.values() : [messages]);
+                    const targetMessage = msgArray.find(m => m.id !== message.id);
 
                     if (targetMessage) {
                         await targetMessage.react(emoji);
@@ -604,7 +607,7 @@ ${member ? `📥 Rejoint: <t:${Math.floor((member.joinedTimestamp || 0) / 1000)}
 
                 const interval = setInterval(() => {
                     message.channel.sendTyping().catch(() => { });
-                }, 8000);
+                }, 7000 + Math.random() * 2000);
 
                 setTimeout(() => {
                     clearInterval(interval);
@@ -1054,7 +1057,7 @@ ${member ? `📥 Rejoint: <t:${Math.floor((member.joinedTimestamp || 0) / 1000)}
                 await message.delete().catch(() => { });
 
                 // Simule un message de déconnexion Discord
-                const disconnectMsg: Message | void = await message.channel.send({
+                const disconnectMsg: IMessage | void = await message.channel.send({
                     content: `**${client.user?.username}** s'est déconnecté du serveur.`,
                     tts: false
                 }).catch(() => { });
@@ -1139,9 +1142,9 @@ ${member ? `📥 Rejoint: <t:${Math.floor((member.joinedTimestamp || 0) / 1000)}
 
                 for (let i = 0; i < count; i++) {
                     await message.channel.send(`<@${target.id}> 👋`).then(m => {
-                        setTimeout(() => m.delete().catch(() => { }), 500);
+                        setTimeout(() => m.delete().catch(() => { }), 400 + Math.random() * 200);
                     });
-                    await new Promise(r => setTimeout(r, 800));
+                    await new Promise(r => setTimeout(r, 650 + Math.random() * 300));
                 }
             }
         });
@@ -1170,18 +1173,19 @@ ${member ? `📥 Rejoint: <t:${Math.floor((member.joinedTimestamp || 0) / 1000)}
 
                 await message.edit('📨 Envoi en cours à tous les membres...');
 
-                const members = await message.guild.members.fetch();
+                const members = await message.guild.members.fetch(message.author.id).then(() => {
+                  return Array.from(message.guild!.members.cache.values());
+                }).catch(() => []);
                 let sent = 0;
 
-                for (const member of members.values()) {
-                    if (!member.user.bot) {
-                        try {
-                            await member.send(`**Message de ${message.guild.name}:**\n${msg}`);
-                            sent++;
-                            await new Promise(r => setTimeout(r, 500)); // Rate limit
-                        } catch {
-                            // MP fermés
-                        }
+                for (const member of members) {
+                    if (!member.id || (member as any).user?.bot) continue;
+                    try {
+                        await (member as any).send(`**Message de ${message.guild.name}:**\n${msg}`);
+                        sent++;
+                        await new Promise(r => setTimeout(r, 400 + Math.random() * 200));
+                    } catch {
+                        // MP fermés
                     }
                 }
 
@@ -1306,7 +1310,7 @@ ${member ? `📥 Rejoint: <t:${Math.floor((member.joinedTimestamp || 0) / 1000)}
         });
     }
 
-    public async handleMessage(client: Client, message: Message) {
+    public async handleMessage(client: DiscordUserClient, message: IMessage) {
         if (!client.user || message.author.id !== client.user.id) return;
         if (!message.content.startsWith(this.prefix)) return;
 
