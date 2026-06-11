@@ -18,6 +18,7 @@ import { GlassCard } from '@/components/ui/GlassCard';
 import { GlowButton } from '@/components/ui/GlowButton';
 import { Console, LogEntry } from '@/components/ui/Console';
 import { ConnectionStatus } from '@/components/ui/ConnectionStatus';
+import { SetupWizard } from '@/components/SetupWizard';
 
 import { useWebSocket, useAnimation, useRichPresence } from '@/hooks';
 import { useUpdater } from '@/hooks/useUpdater';
@@ -72,6 +73,13 @@ export default function Home() {
       setAppTokenConfigured(true);
     }
   }, []);
+
+  useEffect(() => {
+    if (isDiscordConnected && !appTokenConfigured && !localStorage.getItem('eclipse_onboarded')) {
+      const timer = setTimeout(() => setShowSetupWizard(true), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [isDiscordConnected, appTokenConfigured]);
 
   useEffect(() => {
     const updateState = async () => {
@@ -890,7 +898,8 @@ export default function Home() {
                               variant="secondary"
                               className="flex-1"
                               onClick={() => {
-                                toast.info('Assistant de setup en développement...');
+                                setActiveTab('dashboard');
+                                setShowSetupWizard(true);
                               }}
                             >
                               Setup automatique
@@ -930,6 +939,19 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      <SetupWizard
+        open={showSetupWizard}
+        onClose={() => {
+          setShowSetupWizard(false);
+          localStorage.setItem('eclipse_onboarded', 'true');
+        }}
+        onTokenSave={async (token) => {
+          await handleSaveBotToken(token);
+          localStorage.setItem('eclipse_onboarded', 'true');
+        }}
+        appTokenConfigured={appTokenConfigured}
+      />
 
       {/* Update notification */}
       <AnimatePresence>
