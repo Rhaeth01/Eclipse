@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { listen } from '@tauri-apps/api/event';
 import {
   Shield, Zap, Activity, Eye, Lock,
   Sparkles, Moon, Settings, User,
@@ -80,6 +81,17 @@ export default function Home() {
       return () => clearTimeout(timer);
     }
   }, [isDiscordConnected, appTokenConfigured]);
+
+  useEffect(() => {
+    const unlisten = listen<string>('bot-token-extracted', (event) => {
+      const token = event.payload;
+      if (token) {
+        handleSaveBotToken(token);
+        invoke('close_setup_webview').catch(() => {});
+      }
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
 
   useEffect(() => {
     const updateState = async () => {
@@ -949,6 +961,12 @@ export default function Home() {
         onTokenSave={async (token) => {
           await handleSaveBotToken(token);
           localStorage.setItem('eclipse_onboarded', 'true');
+        }}
+        onOpenPortal={() => {
+          invoke('open_setup_webview').catch((err) => {
+            toast.error('Erreur', { description: `Impossible d'ouvrir le portail: ${err}` });
+            window.open('https://discord.com/developers/applications', '_blank');
+          });
         }}
         appTokenConfigured={appTokenConfigured}
       />

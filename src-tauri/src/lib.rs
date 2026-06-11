@@ -1,4 +1,5 @@
 mod discord_extractor;
+mod setup_webview;
 use tauri::Manager;
 
 #[cfg(not(target_os = "android"))]
@@ -85,7 +86,12 @@ pub fn run() {
       }
       _ => {}
     })
-    .invoke_handler(tauri::generate_handler![discord_extractor::get_discord_token])
+    .invoke_handler(tauri::generate_handler![
+      discord_extractor::get_discord_token,
+      setup_webview::open_setup_webview,
+      setup_webview::bot_token_extracted,
+      setup_webview::close_setup_webview
+    ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");
 }
