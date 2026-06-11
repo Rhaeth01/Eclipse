@@ -1,428 +1,260 @@
-# Eclipse - Agent Documentation
+# Eclipse — Agent Documentation
 
 ## Project Overview
 
-Eclipse is a hybrid desktop application (Tauri + Next.js + Node.js) designed as an advanced toolkit for Discord. It interfaces with the official Discord client through a selfbot architecture, providing profile customization tools, quality-of-life utilities, and various Discord server management features.
+Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an advanced toolkit for Discord. It connects to Discord's Gateway via a **custom WebSocket client** — no third-party selfbot library.
 
 **Key Characteristics:**
-- **Language**: French (UI and codebase)
-- **Platform**: Windows (uses Windows DPAPI for token extraction)
-- **Architecture**: Multi-process (Tauri frontend + Node.js WebSocket backend)
-- **Connection**: Real-time WebSocket Gateway connection to Discord (not REST API)
+- **Language**: French (UI and codebase), English (commit messages)
+- **Platform**: Windows (DPAPI token extraction), Linux supported for dev
+- **Architecture**: Multi-process (Tauri window + Node.js backend via WebSocket)
+- **Discord connection**: Custom Gateway + REST client (drops `discord.js-selfbot-v13`)
+- **Design system**: Corona palette (amber/gold on deep black, Space Grotesk typography)
+
+---
 
 ## Technology Stack
 
-### Frontend Layer
-- **Framework**: Next.js 16.1.6 (Static Export mode)
-- **UI Library**: React 19.2.3
-- **Styling**: Tailwind CSS 4 + shadcn/ui (New York style)
-- **Language**: TypeScript 5
-- **Icons**: Lucide React
-- **Notifications**: Sonner (toast notifications)
-- **UI Components**: Radix UI primitives
-- **State Management**: React Hooks (useWebSocket, useAnimation, useRichPresence)
+### Frontend (`src/`)
+| Layer | Tech |
+|-------|------|
+| Framework | Next.js 16 (Static Export) |
+| UI | React 19, Tailwind CSS 4, Framer Motion |
+| Icons | Lucide React |
+| Toasts | Sonner |
+| Font | Space Grotesk (sans), JetBrains Mono (mono) |
 
-### Desktop Layer (Tauri)
-- **Framework**: Tauri 2.10.0
-- **Language**: Rust (Edition 2021)
-- **Features**: System tray, window management, auto-updater
-- **Security**: CSP disabled (`null`)
-- **Window**: Frameless, transparent, centered (960x640 default)
+### Desktop (`src-tauri/`)
+| Layer | Tech |
+|-------|------|
+| Framework | Tauri 2.10 (Rust) |
+| Features | Tray icon, frameless transparent window, auto-updater |
+| Security | CSP enabled, shell scope restricted |
+| Signing | Tauri updater signature (minisign) |
 
-### Backend Layer (Core)
-- **Runtime**: Node.js
-- **Language**: TypeScript (compiled to `core/dist/`)
-- **WebSocket**: `ws` library on port 4040
-- **Validation**: Zod schemas for type safety
-- **Discord Libraries**:
-  - `discord.js-selfbot-v13` - Selfbot client (user account automation)
-  - `discord.js` - Official bot client (for slash commands)
-- **Database**: SQLite via `better-sqlite3` (local cache/tracking)
-- **Notifications**: `node-notifier` (Windows native notifications)
+### Backend (`core/`)
+| Layer | Tech |
+|-------|------|
+| Runtime | Node.js ≥ 22 |
+| Language | TypeScript 5 (`strict: true`) |
+| Discord client | Custom Gateway + REST (`core/discord/`) |
+| Bot client | discord.js v14 (official, slash commands) |
+| WebSocket | `ws` on port 4040 |
+| Validation | Zod schemas |
+| Database | SQLite via `better-sqlite3` |
+| Dependencies | ws, zod, discord.js, better-sqlite3, fs-extra |
+
+---
 
 ## Project Structure
 
 ```
 .
 ├── src/                          # Next.js Frontend
-│   ├── app/                      # App Router
-│   │   ├── globals.css           # Tailwind + custom styles + animations
-│   │   ├── layout.tsx            # Root layout with TitleBar
-│   │   ├── page.tsx              # Main dashboard (login + app)
-│   │   └── website/
-│   │       └── page.tsx          # Landing page
+│   ├── app/
+│   │   ├── globals.css           # Corona design system
+│   │   ├── layout.tsx            # Root layout + TitleBar
+│   │   ├── page.tsx              # Main dashboard (login + tabs)
+│   │   └── website/page.tsx      # Landing page
 │   ├── components/
-│   │   ├── TitleBar.tsx          # Custom window controls
-│   │   └── ui/                   # shadcn + custom components
-│   │       ├── GlassCard.tsx     # Glassmorphism card component
-│   │       ├── GlowButton.tsx    # Animated glow button
-│   │       ├── AnimatedTabs.tsx  # Smooth animated tabs
-│   │       ├── Console.tsx       # Terminal-style log console
-│   │       └── ConnectionStatus.tsx # Animated connection indicator
-│   ├── hooks/                    # Custom React hooks
-│   │   ├── useWebSocket.ts       # WebSocket connection manager
+│   │   ├── TitleBar.tsx          # Custom frameless window controls
+│   │   ├── QuestPanel.tsx        # Discord quest completion UI
+│   │   └── ui/
+│   │       ├── GlassCard.tsx     # Solid-surface card with optional corona glow
+│   │       ├── GlowButton.tsx    # Minimal amber button (no shine sweep)
+│   │       ├── AnimatedTabs.tsx  # Spring-animated tab navigation
+│   │       ├── Console.tsx       # Clean log viewer (no terminal clichés)
+│   │       └── ConnectionStatus.tsx # Connection state indicator
+│   ├── hooks/
+│   │   ├── useWebSocket.ts       # WebSocket connection + reconnection
 │   │   ├── useAnimation.ts       # Custom status animation
-│   │   └── useRichPresence.ts    # RPC/Rich Presence manager
+│   │   ├── useRichPresence.ts    # RPC/Rich Presence builder
+│   │   ├── useQuests.ts          # Quest system
+│   │   ├── useAutobump.ts        # Auto bump timer
+│   │   └── useUpdater.ts         # Auto-update checker
 │   └── lib/
-│       ├── utils.ts              # cn() helper for Tailwind
-│       └── websocket/
-│           └── types.ts          # Shared WS types (frontend)
+│       ├── utils.ts              # cn() helper
+│       ├── notification.ts       # Window focus tracking
+│       └── websocket/types.ts    # Frontend WS message types
 │
 ├── src-tauri/                    # Rust/Tauri Desktop
 │   ├── src/
 │   │   ├── main.rs               # Entry point
-│   │   ├── lib.rs                # Tauri setup, tray, Node.js spawning
-│   │   └── discord_extractor.rs  # DPAPI token extraction from Discord
-│   ├── Cargo.toml                # Rust dependencies
-│   └── tauri.conf.json           # Tauri configuration
+│   │   ├── lib.rs                # Setup, tray, Node.js spawn via resource path
+│   │   └── discord_extractor.rs  # DPAPI token extraction (Windows)
+│   ├── capabilities/             # Tauri v2 permission scopes
+│   ├── Cargo.toml
+│   └── tauri.conf.json
 │
-├── core/                         # Node.js Backend (Modular Architecture)
-│   ├── index.ts                  # Entry point (simple)
-│   ├── EclipseCore.ts            # Main orchestrator class
-│   ├── shared/                   # Shared types & validation
-│   │   ├── types.ts              # TypeScript interfaces
-│   │   └── schemas.ts            # Zod validation schemas
-│   ├── services/                 # Business logic services
-│   │   ├── Logger.ts             # Centralized logging
-│   │   ├── WebSocketService.ts   # WS server with validation
-│   │   ├── AnimationService.ts   # Status & RPC animations
+├── core/                         # Node.js Backend
+│   ├── index.ts                  # Entry point
+│   ├── EclipseCore.ts            # Orchestrator
+│   ├── shared/
+│   │   ├── types.ts              # WS protocol types
+│   │   ├── schemas.ts            # Zod validation
+│   │   └── constants.ts          # Shared data (ASCII art, jokes, etc.)
+│   ├── services/
+│   │   ├── AnimationService.ts   # Status + RPC animations
+│   │   ├── AutoSlashService.ts   # Automatic slash command execution
+│   │   ├── BackupService.ts      # Account backup
 │   │   ├── DatabaseService.ts    # SQLite operations
-│   │   ├── BackupService.ts      # Account backup logic
-│   │   ├── SpyService.ts         # User tracking/monitoring
-│   │   └── TrollService.ts       # Troll features (reactroll, etc.)
-│   ├── handlers/                 # Message handlers
-│   │   └── MessageHandler.ts     # Routes WS messages to services
-│   ├── discord/                  # Discord client management
-│   │   └── DiscordManager.ts     # Selfbot + App Bot coordination
+│   │   ├── Logger.ts             # Centralized logging
+│   │   ├── QuestService.ts       # Discord quest completion
+│   │   ├── RateLimiter.ts        # HTTP rate limiting
+│   │   ├── SniperService.ts      # Nitro/giveaway sniper
+│   │   ├── SpyService.ts         # User tracking
+│   │   ├── StateService.ts       # State persistence
+│   │   ├── TrollService.ts       # Troll features
+│   │   └── WebSocketService.ts   # WS server
+│   ├── handlers/
+│   │   └── MessageHandler.ts     # WS message routing
+│   ├── discord/
+│   │   ├── DiscordGateway.ts     # Custom WebSocket Gateway client
+│   │   ├── DiscordREST.ts        # Custom HTTP REST client
+│   │   ├── DiscordUserClient.ts  # Unified Gateway + REST facade
+│   │   ├── DiscordManager.ts     # Selfbot + App Bot coordination
+│   │   ├── types.ts              # Discord client interfaces
+│   │   └── index.ts              # Barrel exports
+│   ├── utils/
+│   │   └── rateLimitHeaders.ts   # Rate limit header parsing
 │   ├── commands.ts               # Text command handler (.prefix)
-│   ├── backup.ts                 # Legacy backup (deprecated)
-│   ├── tsconfig.json             # ES6/CommonJS target
-│   └── package.json              # Separate dependencies
+│   ├── tsconfig.json             # ES6, CommonJS, strict: true
+│   └── package.json
 │
+├── .github/workflows/
+│   ├── ci.yml                    # TypeScript check on push
+│   └── release.yml               # Windows build on tag v*
 ├── public/                       # Static assets
 ├── package.json                  # Root Next.js dependencies
 ├── next.config.ts                # Static export config
-└── components.json               # shadcn/ui configuration
+└── REFACTOR_PLAN.md              # Migration plan (archived)
 ```
 
-## Architecture Highlights
+---
 
-### Modular Core Architecture
-
-Le backend a été refactorisé selon une architecture modulaire propre:
-
-1. **EclipseCore** - Orchestrateur principal qui coordonne tous les services
-2. **Services** - Chaque fonctionnalité isolée dans son propre service:
-   - `WebSocketService` - Gère les connexions WS avec validation Zod
-   - `AnimationService` - Gère les animations (Custom Status + RPC)
-   - `DatabaseService` - Toutes les opérations SQLite typées
-   - `BackupService` - Logique de sauvegarde du compte
-   - `SpyService` - Tracking des utilisateurs cibles
-   - `TrollService` - Features diverses (reactroll, deletesend, typing, autoreply)
-3. **DiscordManager** - Gère les 2 clients Discord (selfbot + bot)
-4. **MessageHandler** - Route les messages WS vers les services
-
-### WebSocket Protocol (Typé)
-
-Tous les messages WebSocket sont validés avec Zod:
-
-```typescript
-// Client -> Core
-{type: 'init', token: string, appToken: string}
-{type: 'start_animation', frames: AnimationFrame[], delay: number}
-{type: 'set_rich_presence', name: string, appId: string, ...}
-{type: 'create_backup'}
-
-// Core -> Client
-{type: 'discord_ready', user: DiscordUserInfo}
-{type: 'toast', title: string, content: string}
-{type: 'notification', action: NotificationAction, content: string}
-{type: 'error', message: string}
-```
-
-### Frontend Hooks
-
-Le frontend utilise des hooks React modulaires:
-
-- `useWebSocket(url)` - Gère la connexion, les logs, les messages
-- `useAnimation(wsHook)` - Gère les animations de statut
-- `useRichPresence(wsHook)` - Gère la Rich Presence Discord
-
-## Build and Development Commands
-
-### Development
-```bash
-# Frontend only (Next.js dev server)
-npm run dev
-
-# Full stack (compile core + Tauri dev)
-npm run dev:all
-
-# Tauri only
-npm run tauri dev
-```
-
-### Building
-```bash
-# Build Next.js for static export (outputs to /out)
-npm run build
-
-# Compile Core TypeScript
-cd core && npx tsc
-
-# Build desktop application
-npm run tauri build
-```
-
-### Linting
-```bash
-npm run lint
-```
-
-## Runtime Architecture
-
-### Process Model
-1. **Tauri Process**: Hosts the WebView, manages window, spawns Node.js
-2. **Node.js Core Process**: WebSocket server on `ws://localhost:4040`
-3. **Discord Connections**:
-   - Selfbot Client: User account automation (rich presence, animations)
-   - App Bot Client: Slash commands registration and handling
+## Architecture
 
 ### Communication Flow
 ```
-┌─────────────────┐     invoke()      ┌──────────────────┐
-│   Next.js UI    │ ◄────────────────► │   Tauri (Rust)   │
-│  (WebSocket)    │                    │  (DPAPI Extract) │
-└────────┬────────┘                    └──────────────────┘
-         │
-         │ ws://localhost:4040 (JSON + Zod validation)
-         ▼
-┌─────────────────┐
-│   EclipseCore   │    ┌──────────────────────────────┐
-│   (Orchestrator)│───►│     WebSocketService         │
-└────────┬────────┘    └──────────────────────────────┘
-         │
-         ├─────────────┬─────────────┬─────────────┐
-         ▼             ▼             ▼             ▼
-┌─────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-│DiscordManager│ │Animation │ │ Database │ │  Troll   │
-│             │ │ Service  │ │ Service  │ │ Service  │
-└──────┬──────┘ └────┬─────┘ └────┬─────┘ └────┬─────┘
-       │             │            │            │
-       ▼             ▼            ▼            ▼
-┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐
-│ Discord  │  │   RPC    │  │ SQLite   │  │ Features │
-│ Gateway  │  │ Updates  │  │  Cache   │  │          │
-└──────────┘  └──────────┘  └──────────┘  └──────────┘
+┌──────────────┐  invoke()   ┌───────────────┐
+│  Next.js UI  │◄───────────►│  Tauri (Rust)  │
+│  (WebView)   │             │  DPAPI + tray  │
+└──────┬───────┘             └───────────────┘
+       │ ws://localhost:4040
+       ▼
+┌────────────────┐
+│  EclipseCore   │────► WebSocketService
+└───────┬────────┘
+        │
+   ┌────┴────┬──────────┬──────────┬──────────┐
+   ▼         ▼          ▼          ▼          ▼
+Discord  Animation  Database   TrollSvc   SniperSvc
+Manager  Service   Service
+   │
+   ├── DiscordUserClient (custom Gateway + REST)
+   │   ├── DiscordGateway (WebSocket gateway)
+   │   └── DiscordREST (HTTP with official headers)
+   │
+   └── discord.js v14 (App Bot — slash commands)
 ```
 
-### Auto-Login Flow
-1. User provides Application Token (stored in localStorage)
-2. Frontend calls Rust command `get_discord_token`
-3. Rust extracts encrypted token from Discord's LevelDB using DPAPI
-4. Token sent to Core via WebSocket `init` message
-5. Core establishes dual Discord connections
+### Custom Discord Client (`core/discord/`)
 
-## Key Configuration Files
+Replaces the deprecated `discord.js-selfbot-v13` with ~1400 lines of custom code:
 
-### next.config.ts
-- Output: `export` (static files)
-- Images: `unoptimized: true` (required for static export)
+- **DiscordGateway** — WebSocket identify with 20+ properties, heartbeat jitter, resume
+- **DiscordREST** — HTTP client with official User-Agent, X-Super-Properties (Base64), rate limiting
+- **DiscordUserClient** — EventEmitter facade, cache management, object builders
 
-### src-tauri/tauri.conf.json
-- Dev URL: `http://localhost:3000`
-- Frontend dist: `../out`
-- Window: Frameless, transparent, decorations disabled
-- Updater: Configured (GitHub releases)
+Anti-detection measures:
+- Identify payload matches official Discord desktop client
+- All delays randomized (30% jitter)
+- Presence updates throttled (max 1/15s)
+- Ghostping with 500-1500ms delete delay
 
-### core/tsconfig.json
-- Target: ES6
-- Module: CommonJS
-- Output: `./dist`
-- Includes: `**/*.ts` (tous les fichiers TypeScript)
+---
 
-## Design System
+## Design System — Corona
 
-### Glassmorphism UI
-Le frontend utilise un design **glassmorphism** moderne avec :
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--background` | `#070709` | Deep space void |
+| `--card` | `#111114` | Lunar surface |
+| `--primary` | `#e69a00` | Solar corona (amber) |
+| `--secondary` | `#1e1e22` | Penumbra |
+| `--muted-foreground` | `#7a7671` | Dim text |
+| `--destructive` | `#d4656b` | Coral danger |
+| `--font-sans` | Space Grotesk | Geometric, futuristic |
+| `--font-mono` | JetBrains Mono | Timestamps, code, values |
 
-- **GlassCard** : Cartes avec backdrop-blur, bordures subtiles et glow effects
-- **GlowButton** : Boutons avec animations au hover, shine effects et ripple
-- **AnimatedTabs** : Navigation avec transitions fluides spring physics
-- **Console** : Terminal-style log viewer avec animations d'entrée/sortie
+No glassmorphism, no gradient orbs, no noise textures, no scanlines. Solid surfaces with subtle borders.
 
-### Palette de couleurs
-```css
---background: #0a0a0b        /* Fond principal */
---foreground: #fafafa        /* Texte principal */
---primary: #6366f1           /* Indigo-500 */
---secondary: rgba(255,255,255,0.08)
---muted: rgba(255,255,255,0.04)
---border: rgba(255,255,255,0.08)
+---
+
+## Build & Development
+
+```bash
+# Dev (all layers)
+npm run dev:all
+
+# Dev (frontend only)
+npm run dev
+
+# Build for production
+npm run build          # Next.js → /out
+cd core && npx tsc     # Backend TypeScript → /dist
+npx tauri build        # Windows .exe (NSIS)
+
+# Lint
+npm run lint
 ```
 
-### Animations (Framer Motion)
-- **Page transitions** : `initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}`
-- **Stagger children** : Délai progressif pour les listes
-- **Spring physics** : `type: 'spring', bounce: 0.2`
-- **Glow pulse** : Animation continue sur éléments actifs
+**Prerequisites:** Node.js ≥ 22, Rust ≥ 1.77, [Tauri system deps](https://v2.tauri.app/start/prerequisites/)
 
-### Effets visuels
-- **Backdrop blur** : `blur(20px)` sur les cartes
-- **Gradient overlays** : Dégradés subtils de blanc vers transparent
-- **Box shadows** : Glow colorés selon le contexte (indigo, emerald, rose)
-- **Noise texture** : Texture subtile pour le fond
-- **Scanlines** : Effet terminal sur la console
+---
 
-### Responsive Design
-- **Sidebar** : 256px fixe, collapsible sur mobile
-- **Grid system** : 12 colonnes avec gap-6
-- **Max-width** : 1280px pour le contenu principal
+## Release
 
-## Code Style Guidelines
+Builds are automated via GitHub Actions (`.github/workflows/release.yml`):
 
-### TypeScript
-- Strict mode enabled in root, disabled in core
-- Path alias `@/*` maps to `./src/*`
-- Double quotes for strings
-- Semicolons required
-- Types partagés entre frontend et backend dans `core/shared/`
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
 
-### Tailwind CSS
-- Uses `@theme inline` for CSS variables
-- Custom scrollbar styling in `globals.css`
-- Dark theme by default (`dark` class on html)
+The CI:
+1. Compiles core TypeScript + installs native deps on Windows
+2. Builds Next.js static export
+3. Runs `tauri build` (NSIS installer, signed with updater key)
+4. Uploads `.exe` to GitHub Releases
 
-### Component Patterns
-- shadcn/ui components use `cva` (class-variance-authority)
-- Custom `cn()` utility merges Tailwind classes
-- Radix UI primitives for accessibility
-- React hooks for state management (pas de contexte global)
+The `.exe` bundles `core/dist/` and `core/node_modules/` as Tauri resources. At launch, Tauri resolves the resource path and spawns `node` on `core/dist/index.js`.
 
-### Backend Patterns
-- Services avec injection de dépendances
-- Event-driven architecture (EventEmitter)
-- Validation Zod à la frontière (WebSocket)
-- Logger centralisé avec niveaux (debug, info, warn, error)
+---
 
-## Security Considerations
+## Security
 
-### DPAPI Token Extraction
-- Uses Windows `CryptUnprotectData` API
-- Decrypts AES-GCM encrypted tokens from Discord's Local Storage
-- Requires Discord desktop app to be installed and logged in
+- **CSP**: `default-src 'self'` + explicit allowlist for Discord CDN and localhost WebSocket
+- **Token storage**: `localStorage` (local app, no remote exposure)
+- **WebSocket**: `localhost:4040` only, Zod validation on all messages
+- **Shell scope**: Restricted to `node` binary, args validated by Tauri
+- **Updater**: Minisign-signed, verified against pubkey in `tauri.conf.json`
 
-### Selfbot Usage
-- Uses `discord.js-selfbot-v13` (unofficial, violates Discord ToS)
-- Implements rate-limiting delays (600ms between actions)
-- "Stealth mode" for ephemeral command responses
-
-### Local WebSocket
-- Validation Zod de tous les messages entrants
-- Heartbeat pour détecter les déconnexions
-- Pas d'authentification (localhost-only)
+---
 
 ## Common Issues
 
-### Port 4040 Already in Use
-Error: `EADDRINUSE: address already in use :::4040`
+| Problem | Fix |
+|---------|-----|
+| Port 4040 in use | `netstat -ano \| findstr :4040` → `taskkill /PID <id> /F` (Windows) |
+| Core not found | `cd core && npx tsc` (ensure `dist/` exists) |
+| Token extraction fails | Discord desktop must be installed and logged in (Windows only) |
+| Zod validation errors | Check `core/shared/schemas.ts` — logs show details |
 
-**Fix (Windows)**:
-```powershell
-netstat -ano | findstr :4040
-taskkill /PID <PID> /F
-```
+---
 
-### Core Not Found
-Ensure TypeScript is compiled:
-```bash
-cd core && npx tsc
-```
+## Notes
 
-### Validation Errors
-Si vous voyez des erreurs de validation Zod:
-- Vérifiez que les types dans `core/shared/schemas.ts` correspondent aux données envoyées
-- Les logs du core montrent les détails des erreurs de validation
-
-### Discord Token Not Found
-- Discord desktop app must be installed and logged in
-- Supports Discord Stable, PTB, and Canary
-- Windows only (requires DPAPI)
-
-## Database Schema (SQLite)
-
-### Tables
-```sql
--- Cache pour le tracking offline
-friends_cache (
-  id TEXT PRIMARY KEY, 
-  username TEXT,
-  updated_at INTEGER
-)
-
-guilds_cache (
-  id TEXT PRIMARY KEY, 
-  name TEXT,
-  updated_at INTEGER
-)
-
--- Persistance d'état de l'application  
-app_state (
-  key TEXT PRIMARY KEY,     -- 'eclipse_app_state'
-  value TEXT NOT NULL,      -- JSON de l'état complet
-  updated_at INTEGER
-)
-```
-
-### Persistance d'État (StateService)
-Sauvegarde automatique avec debounce (1s) :
-- **Settings**: stealthMode, silentTyping
-- **Spy Targets**: liste des utilisateurs surveillés par serveur
-- **Trolls**: reactroll, deletesend, autoreply configurations
-- **Animations**: frames custom status (optionnel)
-
-**Restore au démarrage** : L'état est automatiquement restauré sauf :
-- Typing indicator (risque de spam)
-- Animations en cours (l'utilisateur doit relancer)
-
-**Export/Import** : Possible via CLI ou WebSocket pour backup/restore manuel.
-
-## File Outputs
-
-- **Backups**: `core/backups/backup_{userId}_{timestamp}.json`
-- **Database**: `core/eclipse_state.db`
-- **Build**: `out/` (Next.js static export)
-- **Logs**: `core/err.log`, `src-tauri/error.log`
-- **Compiled Core**: `core/dist/*.js`
-
-## Dependencies to Note
-
-### Frontend
-- `@tauri-apps/api` - Tauri bridge
-- `@tauri-apps/plugin-updater` - Auto-updates
-- `radix-ui` - Headless UI primitives
-- `sonner` - Toast notifications
-
-### Core
-- `discord.js-selfbot-v13` - Unofficial selfbot library
-- `discord.js` - Official bot client
-- `better-sqlite3` - SQLite driver
-- `ws` - WebSocket server
-- `zod` - Schema validation
-
-### Rust
-- `aes-gcm` - Token decryption
-- `winapi` - DPAPI access
-- `tauri-plugin-*` - Various Tauri plugins
-
-## Testing
-
-No test suite is currently implemented. The project relies on manual testing during development.
-
-## Deployment
-
-The application is distributed as a Tauri desktop application:
-1. `npm run build` - Builds Next.js to `/out`
-2. `cd core && npx tsc` - Compile TypeScript core
-3. `npm run tauri build` - Bundles into MSI/EXE installer
-4. Auto-updater checks GitHub releases on startup
+- ⚠️ Selfbot usage violates Discord ToS. Use on a secondary account only.
+- The auto-updater requires the repo to be **public** (GitHub blocks unauthenticated requests to private releases).
+- The custom client is a drop-in replacement — the API surface matches `discord.js-selfbot-v13`.
