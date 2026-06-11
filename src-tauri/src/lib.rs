@@ -47,16 +47,19 @@ pub fn run() {
       use tauri_plugin_shell::ShellExt;
       use tauri_plugin_shell::process::CommandEvent;
 
-      let node_script_path = if std::path::Path::new("../core/dist/index.js").exists() {
-           "../core/dist/index.js"
-      } else if std::path::Path::new("core/dist/index.js").exists() {
-           "core/dist/index.js"
-      } else {
-           eprintln!("[Tauri] Core introuvable ! Vérifiez que core/dist/index.js existe.");
-           return Ok(());
-      };
+      let resource_dir = app.path().resource_dir()
+          .unwrap_or_default();
 
-      match app.handle().shell().command("node").args([node_script_path]).spawn() {
+      let node_script_path = resource_dir.join("core").join("dist").join("index.js");
+
+      if !node_script_path.exists() {
+          eprintln!("[Tauri] Core introuvable: {}", node_script_path.display());
+          return Ok(());
+      }
+
+      let script_path_str = node_script_path.to_string_lossy().to_string();
+
+      match app.handle().shell().command("node").args([&script_path_str]).spawn() {
           Ok((mut rx, _child)) => {
               tauri::async_runtime::spawn(async move {
                   while let Some(event) = rx.recv().await {
