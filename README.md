@@ -7,16 +7,19 @@
   <img src="https://img.shields.io/badge/next-16.1-black?logo=nextdotjs" />
   <img src="https://img.shields.io/badge/typescript-5.9-3178C6?logo=typescript" />
   <img src="https://img.shields.io/badge/rust-1.96-DEA584?logo=rust" />
+  <img src="https://img.shields.io/badge/tests-51%20passed-2d9e8a?logo=vitest" />
   <img src="https://img.shields.io/github/v/release/Rhaeth01/Eclipse?color=e69a00" />
 </p>
 
 ---
 
-## Installation
+## Setup
 
-Téléchargez le `.exe` depuis les [Releases](https://github.com/Rhaeth01/Eclipse/releases). Windows uniquement.
+L'application extrait automatiquement votre token Discord depuis le client desktop (DPAPI, Windows uniquement).
 
-L'application extrait automatiquement votre token Discord depuis le client desktop (DPAPI). Vous aurez besoin d'un **Application Token** pour les slash commands.
+**Pour les Slash Commands :** un assistant de setup pas-à-pas vous guide au premier lancement. Vous pouvez aussi configurer votre token Application manuellement ou automatiquement (WebView Tauri qui ouvre le portail développeur Discord).
+
+> Le token Application est **optionnel** — toutes les fonctionnalités selfbot (RPC, animations, spy, troll, sniper, etc.) fonctionnent sans. Seules les commandes `/slash` nécessitent un token bot.
 
 ---
 
@@ -37,7 +40,7 @@ L'application extrait automatiquement votre token Discord depuis le client deskt
 - **`/deletesend`** — censure et republication des messages d'une cible
 - **`/autoreply`** — réponse simulée avec délai aléatoire
 - **`/server_clone`** — clonage de serveur complet
-- Et 20+ autres commandes slash et contextuelles
+- Et 30+ autres commandes slash et contextuelles
 
 ### Paramètres
 - Mode furtif (réponses éphémères)
@@ -58,9 +61,10 @@ L'application extrait automatiquement votre token Discord depuis le client deskt
 ```
 
 - **Frontend** — Next.js 16 / React 19 / Tailwind CSS 4 / Framer Motion
-- **Desktop** — Tauri 2.10 (Rust) avec tray icon, fenêtre transparente, auto-update
+- **Desktop** — Tauri 2.10 (Rust) avec tray icon, fenêtre transparente, auto-update, WebView de setup automatisé
 - **Backend** — Node.js avec client Gateway + REST custom (zéro dépendance tierce)
 - **Design** — Palette Corona : fond #070709, accent ambre #e69a00, typo Space Grotesk
+- **Tests** — 51 tests (Vitest + React Testing Library) : composants, hooks, schemas Zod
 
 ---
 
@@ -74,10 +78,14 @@ cd core && npm install && cd ..
 # Lancer en mode dev (UI + backend + Tauri)
 npm run dev:all
 
+# Tests
+npm test                 # frontend (38 tests)
+cd core && npm test       # backend (13 tests)
+
 # Build production
-npm run build        # frontend Next.js
-cd core && npx tsc   # backend TypeScript
-npx tauri build      # installer Windows
+npm run build            # frontend Next.js
+cd core && npx tsc       # backend TypeScript
+npx tauri build          # installer Windows
 ```
 
 **Prérequis :** Node.js ≥ 22, Rust ≥ 1.77, [dépendances système Tauri](https://v2.tauri.app/start/prerequisites/)
@@ -89,8 +97,8 @@ npx tauri build      # installer Windows
 Les builds Windows sont générés automatiquement par GitHub Actions à chaque tag :
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.2.0
+git push origin v0.2.0
 ```
 
 La CI compile, signe et publie le `.exe` sur les [Releases GitHub](https://github.com/Rhaeth01/Eclipse/releases).

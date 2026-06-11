@@ -30,6 +30,30 @@ const SETUP_INIT_SCRIPT: &str = r###"
     if (bannerEl) { bannerEl.remove(); bannerEl = null; }
   }
 
+  function autoFillAppName() {
+    if (window.__eclipseNameAutoFilled) return;
+    window.__eclipseNameAutoFilled = true;
+    var inputs = document.querySelectorAll('input[type="text"], input:not([type])');
+    for (var i = 0; i < inputs.length; i++) {
+      var input = inputs[i];
+      var label = (input.closest('div')?.querySelector('label')?.textContent || '').toLowerCase();
+      var placeholder = (input.placeholder || '').toLowerCase();
+      var ariaLabel = (input.getAttribute('aria-label') || '').toLowerCase();
+      if (label.includes('name') || label.includes('nom') ||
+          placeholder.includes('name') || placeholder.includes('nom') ||
+          ariaLabel.includes('name') || ariaLabel.includes('nom')) {
+        try {
+          var setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+          setter.call(input, APP_NAME);
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        } catch(e) {}
+      }
+    }
+    return false;
+  }
+
   function sendToken(token) {
     if (tokenExtracted || !token || token.length < 20) return;
     tokenExtracted = true;
@@ -108,6 +132,7 @@ const SETUP_INIT_SCRIPT: &str = r###"
       case 'app-detail':
       case 'app-info':
         showBanner('2/4) Allez dans l\'onglet "Bot" a gauche');
+        setTimeout(function() { autoFillAppName(); }, 500);
         break;
       case 'app-oauth2':
         showBanner('2/4) Allez dans l\'onglet "Bot" a gauche (pas OAuth2)');
