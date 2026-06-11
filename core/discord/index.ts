@@ -1,7 +1,8 @@
 export { DiscordGateway } from "./DiscordGateway";
 export { DiscordREST } from "./DiscordREST";
 export { DiscordUserClient } from "./DiscordUserClient";
-export {
+export { Permissions, PermissionsFlags } from "./types";
+export type {
   IMessage,
   IChannel,
   IGuild,
@@ -12,8 +13,6 @@ export {
   IVoiceState,
   IMessageMentions,
   GatewayProperties,
-  Permissions,
-  PermissionsFlags,
   IDiscordUserClient,
   SelfbotClientEvents,
 } from "./types";
