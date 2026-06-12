@@ -8,8 +8,48 @@ Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an adva
 - **Language**: French (UI and codebase), English (commit messages)
 - **Platform**: Windows (DPAPI token extraction), Linux supported for dev
 - **Architecture**: Multi-process (Tauri window + Node.js backend via WebSocket)
-- **Discord connection**: Custom Gateway + REST client (drops `discord.js-selfbot-v13`)
+- **Discord connection**: Custom Gateway + REST client
 - **Design system**: Corona palette (amber/gold on deep black, Space Grotesk typography)
+- **Status**: Beta (version 0.x) — forkable, contributions welcome
+- **License**: Eclipse Non-Commercial License v1.0 (free, forkable, no commercial use)
+
+---
+
+## Progress (v0.3.0)
+
+### Done
+
+| Area | What |
+|------|------|
+| **Core** | Custom DiscordGateway + DiscordREST + DiscordUserClient (~1400 lines) |
+| **Core** | Modular services: Animation, Database, Backup, Spy, Troll, Sniper, Quest, AutoSlash, State, BotSetup |
+| **Core** | WebSocket server on port 4040 with Zod validation |
+| **Core** | discord.js v14 App Bot for 57+ slash commands |
+| **Core** | API-driven bot setup: createApplication, createBot, resetToken, authorize (DiscordREST) |
+| **Core** | BotSetupService: fully automated 4-step bot setup orchestration |
+| **Frontend** | Next.js 16 + React 19 + Tailwind CSS 4 + Framer Motion |
+| **Frontend** | SetupWizard: 5-step onboarding with auto-setup + manual fallback |
+| **Frontend** | Corona design system (amber #e69a00, Space Grotesk, solid surfaces) |
+| **Frontend** | Rich Presence builder with animation queue |
+| **Desktop** | Tauri 2.10: tray, frameless window, auto-updater, DPAPI token extraction |
+| **Desktop** | setup_webview.rs: WebView2 portal with injected JS (banner, token detection, auto-fill) |
+| **CI/CD** | GitHub Actions: TypeScript check on push, Windows build on tag |
+| **Tests** | 51 tests: Vitest + React Testing Library (schemas, components, hooks) |
+| **Docs** | README.md, AGENTS.md, LICENSE |
+
+### In Progress / Planned
+
+| Priority | Feature | Effort |
+|----------|---------|--------|
+| 🟡 | **Rich Presence avancé** — plateformes (Xbox/PS), types Spotify/Crunchyroll, valeurs dynamiques, animations bio/About Me | Large |
+| 🟡 | **Plugin/Script engine** — TypeScript/JS, hot-reload, marketplace community | Large |
+| 🟡 | **Theme system** — CSS custom, marketplace, Corona as default | Medium |
+| 🟡 | **Notifications overhaul** — in-app center, webhooks, filters | Medium |
+| 🟢 | **Multi-account** — alt account support | Medium |
+| 🟢 | **Server cloner** — full guild replication | Medium |
+| 🟢 | **Backup/Restore** — complete account backup (servers, friends, settings) | Small |
+| 🟢 | **Web Login** — official Discord OAuth login for non-Windows | Small |
+| 🟢 | **AutoSlash extended** — more auto slash features beyond AutoBump | Small |
 
 ---
 
@@ -23,13 +63,14 @@ Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an adva
 | Icons | Lucide React |
 | Toasts | Sonner |
 | Font | Space Grotesk (sans), JetBrains Mono (mono) |
+| Tests | Vitest + @testing-library/react + jsdom |
 
 ### Desktop (`src-tauri/`)
 | Layer | Tech |
 |-------|------|
 | Framework | Tauri 2.10 (Rust) |
-| Features | Tray icon, frameless transparent window, auto-updater |
-| Security | CSP enabled, shell scope restricted |
+| Features | Tray icon, frameless transparent window, auto-updater, WebView bot setup |
+| Security | CSP enabled, shell scope restricted to `node` |
 | Signing | Tauri updater signature (minisign) |
 
 ### Backend (`core/`)
@@ -42,7 +83,7 @@ Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an adva
 | WebSocket | `ws` on port 4040 |
 | Validation | Zod schemas |
 | Database | SQLite via `better-sqlite3` |
-| Dependencies | ws, zod, discord.js, better-sqlite3, fs-extra |
+| Tests | Vitest |
 
 ---
 
@@ -59,11 +100,13 @@ Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an adva
 │   ├── components/
 │   │   ├── TitleBar.tsx          # Custom frameless window controls
 │   │   ├── QuestPanel.tsx        # Discord quest completion UI
+│   │   ├── SetupWizard.tsx       # 5-step bot setup (welcome/instructions/token/auto/done)
+│   │   ├── __tests__/            # Component tests
 │   │   └── ui/
 │   │       ├── GlassCard.tsx     # Solid-surface card with optional corona glow
-│   │       ├── GlowButton.tsx    # Minimal amber button (no shine sweep)
+│   │       ├── GlowButton.tsx    # Minimal amber button
 │   │       ├── AnimatedTabs.tsx  # Spring-animated tab navigation
-│   │       ├── Console.tsx       # Clean log viewer (no terminal clichés)
+│   │       ├── Console.tsx       # Log viewer
 │   │       └── ConnectionStatus.tsx # Connection state indicator
 │   ├── hooks/
 │   │   ├── useWebSocket.ts       # WebSocket connection + reconnection
@@ -71,7 +114,10 @@ Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an adva
 │   │   ├── useRichPresence.ts    # RPC/Rich Presence builder
 │   │   ├── useQuests.ts          # Quest system
 │   │   ├── useAutobump.ts        # Auto bump timer
-│   │   └── useUpdater.ts         # Auto-update checker
+│   │   ├── useUpdater.ts         # Auto-update checker
+│   │   └── __tests__/            # Hook tests
+│   ├── test/
+│   │   └── setup.ts              # Vitest setup (jest-dom matchers)
 │   └── lib/
 │       ├── utils.ts              # cn() helper
 │       ├── notification.ts       # Window focus tracking
@@ -80,8 +126,9 @@ Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an adva
 ├── src-tauri/                    # Rust/Tauri Desktop
 │   ├── src/
 │   │   ├── main.rs               # Entry point
-│   │   ├── lib.rs                # Setup, tray, Node.js spawn via resource path
-│   │   └── discord_extractor.rs  # DPAPI token extraction (Windows)
+│   │   ├── lib.rs                # Setup, tray, Node.js spawn, invoke handlers
+│   │   ├── discord_extractor.rs  # DPAPI token extraction (Windows)
+│   │   └── setup_webview.rs      # WebView2 portal + injected JS (banner, auto-fill, token detect)
 │   ├── capabilities/             # Tauri v2 permission scopes
 │   ├── Cargo.toml
 │   └── tauri.conf.json
@@ -92,11 +139,13 @@ Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an adva
 │   ├── shared/
 │   │   ├── types.ts              # WS protocol types
 │   │   ├── schemas.ts            # Zod validation
-│   │   └── constants.ts          # Shared data (ASCII art, jokes, etc.)
+│   │   ├── constants.ts          # Shared data (ASCII art, jokes, etc.)
+│   │   └── __tests__/            # Schema tests
 │   ├── services/
 │   │   ├── AnimationService.ts   # Status + RPC animations
 │   │   ├── AutoSlashService.ts   # Automatic slash command execution
 │   │   ├── BackupService.ts      # Account backup
+│   │   ├── BotSetupService.ts    # Automated bot app creation (API-driven, 4 steps)
 │   │   ├── DatabaseService.ts    # SQLite operations
 │   │   ├── Logger.ts             # Centralized logging
 │   │   ├── QuestService.ts       # Discord quest completion
@@ -110,24 +159,27 @@ Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an adva
 │   │   └── MessageHandler.ts     # WS message routing
 │   ├── discord/
 │   │   ├── DiscordGateway.ts     # Custom WebSocket Gateway client
-│   │   ├── DiscordREST.ts        # Custom HTTP REST client
+│   │   ├── DiscordREST.ts        # Custom HTTP REST client (+ app creation endpoints)
 │   │   ├── DiscordUserClient.ts  # Unified Gateway + REST facade
-│   │   ├── DiscordManager.ts     # Selfbot + App Bot coordination
+│   │   ├── DiscordManager.ts     # Selfbot + App Bot coordination + 57 commands
 │   │   ├── types.ts              # Discord client interfaces
 │   │   └── index.ts              # Barrel exports
 │   ├── utils/
 │   │   └── rateLimitHeaders.ts   # Rate limit header parsing
 │   ├── commands.ts               # Text command handler (.prefix)
 │   ├── tsconfig.json             # ES6, CommonJS, strict: true
+│   ├── vitest.config.ts          # Core test configuration
 │   └── package.json
 │
 ├── .github/workflows/
 │   ├── ci.yml                    # TypeScript check on push
-│   └── release.yml               # Windows build on tag v*
+│   └── release.yml               # Windows build on tag v* (+ .exe, .sig, latest.json)
+├── vitest.config.ts              # Frontend test configuration
 ├── public/                       # Static assets
 ├── package.json                  # Root Next.js dependencies
 ├── next.config.ts                # Static export config
-└── REFACTOR_PLAN.md              # Migration plan (archived)
+├── LICENSE                       # Eclipse Non-Commercial License v1.0
+└── README.md
 ```
 
 ---
@@ -146,25 +198,29 @@ Eclipse is a desktop application (Tauri + Next.js + Node.js) designed as an adva
 │  EclipseCore   │────► WebSocketService
 └───────┬────────┘
         │
-   ┌────┴────┬──────────┬──────────┬──────────┐
-   ▼         ▼          ▼          ▼          ▼
-Discord  Animation  Database   TrollSvc   SniperSvc
-Manager  Service   Service
+   ┌────┴────┬──────────┬──────────┬──────────┬──────────┐
+   ▼         ▼          ▼          ▼          ▼          ▼
+Discord  Animation  Database   TrollSvc   SniperSvc  BotSetup
+Manager  Service   Service                        Service
    │
    ├── DiscordUserClient (custom Gateway + REST)
    │   ├── DiscordGateway (WebSocket gateway)
-   │   └── DiscordREST (HTTP with official headers)
+   │   └── DiscordREST (HTTP + app creation API)
    │
-   └── discord.js v14 (App Bot — slash commands)
+   └── discord.js v14 (App Bot — 57+ slash commands)
+```
+
+### Bot Setup Flow
+```
+1. User clicks "Setup automatique" in wizard
+2. Core creates app via POST /api/v9/applications
+3. Core creates bot via POST /applications/{id}/bot
+4. Core resets token via POST /applications/{id}/bot/reset
+5. Core generates OAuth URL → user authorizes
+6. Token saved → Slash Commands active
 ```
 
 ### Custom Discord Client (`core/discord/`)
-
-Replaces the deprecated `discord.js-selfbot-v13` with ~1400 lines of custom code:
-
-- **DiscordGateway** — WebSocket identify with 20+ properties, heartbeat jitter, resume
-- **DiscordREST** — HTTP client with official User-Agent, X-Super-Properties (Base64), rate limiting
-- **DiscordUserClient** — EventEmitter facade, cache management, object builders
 
 Anti-detection measures:
 - Identify payload matches official Discord desktop client
@@ -187,8 +243,6 @@ Anti-detection measures:
 | `--font-sans` | Space Grotesk | Geometric, futuristic |
 | `--font-mono` | JetBrains Mono | Timestamps, code, values |
 
-No glassmorphism, no gradient orbs, no noise textures, no scanlines. Solid surfaces with subtle borders.
-
 ---
 
 ## Build & Development
@@ -199,6 +253,10 @@ npm run dev:all
 
 # Dev (frontend only)
 npm run dev
+
+# Tests
+npm test               # frontend (38 tests)
+cd core && npm test     # backend (13 tests)
 
 # Build for production
 npm run build          # Next.js → /out
@@ -218,17 +276,17 @@ npm run lint
 Builds are automated via GitHub Actions (`.github/workflows/release.yml`):
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 The CI:
 1. Compiles core TypeScript + installs native deps on Windows
 2. Builds Next.js static export
 3. Runs `tauri build` (NSIS installer, signed with updater key)
-4. Uploads `.exe` to GitHub Releases
+4. Uploads `.exe`, `.sig`, and `latest.json` to GitHub Releases
 
-The `.exe` bundles `core/dist/` and `core/node_modules/` as Tauri resources. At launch, Tauri resolves the resource path and spawns `node` on `core/dist/index.js`.
+The `.exe` bundles `core/dist/` and `core/node_modules/` as Tauri resources.
 
 ---
 
@@ -250,6 +308,7 @@ The `.exe` bundles `core/dist/` and `core/node_modules/` as Tauri resources. At 
 | Core not found | `cd core && npx tsc` (ensure `dist/` exists) |
 | Token extraction fails | Discord desktop must be installed and logged in (Windows only) |
 | Zod validation errors | Check `core/shared/schemas.ts` — logs show details |
+| Bot setup API fails | Fallback manual mode available in wizard |
 
 ---
 
@@ -257,4 +316,5 @@ The `.exe` bundles `core/dist/` and `core/node_modules/` as Tauri resources. At 
 
 - ⚠️ Selfbot usage violates Discord ToS. Use on a secondary account only.
 - The auto-updater requires the repo to be **public** (GitHub blocks unauthenticated requests to private releases).
-- The custom client is a drop-in replacement — the API surface matches `discord.js-selfbot-v13`.
+- Beta status (0.x) — the project is forkable under the Eclipse Non-Commercial License v1.0.
+- Contributions welcome: open an issue or PR on GitHub.
