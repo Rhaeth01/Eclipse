@@ -18,7 +18,7 @@ const originalWebSocket = globalThis.WebSocket;
 let mockWs: ReturnType<typeof makeMockWs>;
 let hookOut: UseWebSocketReturn | null = null;
 
-function makeMockWs() {
+function makeMockWs(): any {
   return {
     readyState: 1,
     onopen: null as ((ev: Event) => void) | null,

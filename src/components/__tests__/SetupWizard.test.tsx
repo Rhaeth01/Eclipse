@@ -47,9 +47,9 @@ describe('SetupWizard', () => {
       expect(screen.getByText('Configurer les Slash Commands')).toBeInTheDocument();
     });
 
-    it('has a "Configurer maintenant" button that goes to step 2', async () => {
+    it('has a "Configurer manuellement" button that goes to step 2', async () => {
       renderWizard();
-      const btn = screen.getByText('Configurer maintenant');
+      const btn = screen.getByText('Configurer manuellement');
       await userEvent.click(btn);
       expect(await screen.findByText("Créer une application Discord")).toBeInTheDocument();
     });
@@ -65,7 +65,7 @@ describe('SetupWizard', () => {
   describe('Step 2 — Instructions', () => {
     beforeEach(async () => {
       renderWizard();
-      await userEvent.click(screen.getByText('Configurer maintenant'));
+      await userEvent.click(screen.getByText('Configurer manuellement'));
     });
 
     it('displays the three instruction steps', () => {
@@ -96,7 +96,7 @@ describe('SetupWizard', () => {
   describe('Step 3 — Token input', () => {
     beforeEach(async () => {
       renderWizard();
-      await userEvent.click(screen.getByText('Configurer maintenant'));
+      await userEvent.click(screen.getByText('Configurer manuellement'));
       await userEvent.click(screen.getByText("J'ai mon token"));
     });
 
@@ -175,7 +175,7 @@ describe('SetupWizard', () => {
   describe('Step 4 — Done', () => {
     beforeEach(async () => {
       renderWizard();
-      await userEvent.click(screen.getByText('Configurer maintenant'));
+      await userEvent.click(screen.getByText('Configurer manuellement'));
       await userEvent.click(screen.getByText("J'ai mon token"));
       const input = screen.getByPlaceholderText('MTAxMjM0NTY3ODkw...');
       await userEvent.type(input, 'A'.repeat(30));
@@ -211,7 +211,7 @@ describe('SetupWizard', () => {
           appTokenConfigured={false}
         />
       );
-      await userEvent.click(screen.getByText('Configurer maintenant'));
+      await userEvent.click(screen.getByText('Configurer manuellement'));
       const link = screen.getByText('discord.com/developers/applications');
       await userEvent.click(link);
       expect(window.open).toHaveBeenCalledWith('https://discord.com/developers/applications', '_blank');

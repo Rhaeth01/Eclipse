@@ -26,7 +26,9 @@ export type WsMessageType =
   // Autobump
   | 'enable_autobump' | 'disable_autobump' | 'get_autobump_status' | 'autobump_status'
   // Bot token management
-  | 'save_bot_token' | 'bot_token_saved';
+  | 'save_bot_token' | 'bot_token_saved'
+  // Auto setup
+  | 'auto_setup_bot' | 'setup_progress';
 
 export interface WsBaseMessage {
   type: WsMessageType;
@@ -185,6 +187,21 @@ export interface BotTokenSavedMessage extends WsBaseMessage {
   message: string;
 }
 
+export interface AutoSetupBotMessage extends WsBaseMessage {
+  type: 'auto_setup_bot';
+  appName?: string;
+}
+
+export interface SetupProgressMessage extends WsBaseMessage {
+  type: 'setup_progress';
+  step: string;
+  message: string;
+  appId?: string;
+  token?: string;
+  authorizeUrl?: string;
+  error?: string;
+}
+
 // ============================================================================
 // DATA TYPES
 // ============================================================================
@@ -257,4 +274,6 @@ export type WsMessage =
   | GetAutobumpStatusMessage
   | AutobumpStatusMessage
   | SaveBotTokenMessage
-  | BotTokenSavedMessage;
+  | BotTokenSavedMessage
+  | AutoSetupBotMessage
+  | SetupProgressMessage;

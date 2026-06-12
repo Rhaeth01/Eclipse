@@ -473,6 +473,48 @@ export class DiscordREST {
     return data;
   }
 
+  async createApplication(name: string): Promise<{ id: string; name: string; bot?: { id: string; token?: string } }> {
+    const { data } = await this.request(
+      "POST",
+      "/applications",
+      { name }
+    );
+    return data;
+  }
+
+  async createBotForApplication(appId: string): Promise<{ id: string; token: string }> {
+    const { data } = await this.request(
+      "POST",
+      `/applications/${appId}/bot`
+    );
+    return data;
+  }
+
+  async resetBotToken(appId: string): Promise<{ token: string }> {
+    const { data } = await this.request(
+      "POST",
+      `/applications/${appId}/bot/reset`
+    );
+    return data;
+  }
+
+  async getApplication(appId: string): Promise<any> {
+    const { data } = await this.request(
+      "GET",
+      `/applications/${appId}`
+    );
+    return data;
+  }
+
+  async authorizeApplication(appId: string, guildId?: string): Promise<string> {
+    const params = new URLSearchParams();
+    params.set("client_id", appId);
+    params.set("scope", "applications.commands%20bot");
+    if (guildId) params.set("guild_id", guildId);
+    const url = `https://discord.com/oauth2/authorize?${params.toString()}`;
+    return url;
+  }
+
   // ==========================================================================
   // UTILITAIRE
   // ==========================================================================

@@ -15,6 +15,7 @@ import { SniperService } from './services/SniperService';
 import { AutoSlashService } from './services/AutoSlashService';
 import { DiscordManager } from './discord/DiscordManager';
 import { MessageHandler, MessageHandlerContext } from './handlers/MessageHandler';
+import { BotSetupService } from './services/BotSetupService';
 import { logger } from './services/Logger';
 import type { WsMessage, InitMessage, ErrorMessage } from './shared/types';
 import * as path from 'path';
@@ -37,6 +38,7 @@ export class EclipseCore {
   private autoSlashService: AutoSlashService;
   private discordManager: DiscordManager;
   private messageHandler: MessageHandler;
+  private botSetupService: BotSetupService;
 
   private commandStealth = true;
   private silentTyping = false;
@@ -77,6 +79,9 @@ export class EclipseCore {
 
     // AutoSlash Service
     this.autoSlashService = new AutoSlashService();
+
+    // Bot Setup Service
+    this.botSetupService = new BotSetupService(this.wsService);
 
     // Message Handler
     const context: MessageHandlerContext = {
@@ -245,6 +250,12 @@ export class EclipseCore {
       return;
     }
 
+    // auto_setup_bot peut arriver à tout moment
+    if (message.type === 'auto_setup_bot') {
+      await this.handleAutoSetup(clientId, message as any);
+      return;
+    }
+
     // Vérifier que Discord est connecté pour les autres messages
     if (!this.discordManager.getSelfbot()?.isReady()) {
       const errorMsg: ErrorMessage = {
@@ -297,6 +308,15 @@ export class EclipseCore {
         message: result.message
       });
     }
+  }
+
+  private async handleAutoSetup(clientId: string, message: { appName?: string }): Promise<void> {
+    logger.info('EclipseCore', 'Démarrage setup automatique du Bot...');
+    const rest = this.discordManager.getRest();
+    if (rest) {
+      this.botSetupService.setRest(rest);
+    }
+    await this.botSetupService.runAutoSetup(clientId, message.appName);
   }
 
   // ============================================================================

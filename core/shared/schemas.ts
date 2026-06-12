@@ -196,6 +196,21 @@ export const BotTokenSavedSchema = z.object({
   message: z.string()
 });
 
+export const AutoSetupBotSchema = z.object({
+  type: z.literal('auto_setup_bot'),
+  appName: z.string().optional()
+});
+
+export const SetupProgressSchema = z.object({
+  type: z.literal('setup_progress'),
+  step: z.string(),
+  message: z.string(),
+  appId: z.string().optional(),
+  token: z.string().optional(),
+  authorizeUrl: z.string().optional(),
+  error: z.string().optional()
+});
+
 // ============================================================================
 // MESSAGE SCHEMAS (Core -> Client)
 // ============================================================================
@@ -292,6 +307,7 @@ export const WsMessageSchema = z.discriminatedUnion('type', [
   GetAutobumpStatusSchema,
   AutobumpStatusSchema,
   SaveBotTokenSchema,
+  AutoSetupBotSchema,
   // Core -> Client
   DiscordReadySchema,
   StatusSchema,
@@ -303,7 +319,8 @@ export const WsMessageSchema = z.discriminatedUnion('type', [
   QuestProgressSchema,
   QuestStatusSchema,
   CoreLogSchema,
-  BotTokenSavedSchema
+  BotTokenSavedSchema,
+  SetupProgressSchema
 ]);
 
 // Type inféré du schéma

@@ -33,7 +33,8 @@ export interface UseWebSocketOptions {
   url: string;
   onDiscordReady?: (user: DiscordUserInfo) => void;
   onError?: (message: string) => void;
-  onMessage?: (data: any) => void; // Callback générique pour tous les messages
+  onMessage?: (data: any) => void;
+  onSetupProgress?: (data: { step: string; message: string; token?: string; authorizeUrl?: string; error?: string }) => void;
 }
 
 export interface UseWebSocketReturn {
@@ -294,6 +295,10 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
                   addLog(`Échec connexion App Bot: ${(data as any).message}`, 'error');
                   toast.error('Erreur', { description: (data as any).message });
                 }
+                break;
+              case 'setup_progress':
+                addLog(`[Setup] ${(data as any).message}`, (data as any).step === 'error' ? 'error' : 'info');
+                options.onSetupProgress?.(data as any);
                 break;
             }
           } catch (err) {

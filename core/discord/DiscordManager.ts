@@ -621,6 +621,68 @@ export class DiscordManager extends EventEmitter {
         .setName('disconnect').setDescription('Fait semblant de se déconnecter')
         .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
 
+      // Image commands
+      new SlashCommandBuilder()
+        .setName('cat').setDescription('Image aléatoire de chat')
+        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+      new SlashCommandBuilder()
+        .setName('dog').setDescription('Image aléatoire de chien')
+        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+      new SlashCommandBuilder()
+        .setName('meme').setDescription('Meme aléatoire depuis Reddit')
+        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+
+      // Voice commands
+      new SlashCommandBuilder()
+        .setName('joinvc').setDescription('Rejoindre un salon vocal')
+        .addChannelOption(o => o.setName('salon').setDescription('Salon vocal à rejoindre').setRequired(true))
+        .setIntegrationTypes([0]).setContexts([0]),
+      new SlashCommandBuilder()
+        .setName('leavevc').setDescription('Quitter le salon vocal actuel')
+        .setIntegrationTypes([0]).setContexts([0]),
+
+      // Utility commands
+      new SlashCommandBuilder()
+        .setName('translate').setDescription('Traduit un texte')
+        .addStringOption(o => o.setName('texte').setDescription('Texte à traduire').setRequired(true))
+        .addStringOption(o => o.setName('langue').setDescription('Code langue cible (fr, en, es, de...)').setRequired(false))
+        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+      new SlashCommandBuilder()
+        .setName('weather').setDescription('Météo d\'une ville')
+        .addStringOption(o => o.setName('ville').setDescription('Nom de la ville').setRequired(true))
+        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+      new SlashCommandBuilder()
+        .setName('qr').setDescription('Génère un QR code')
+        .addStringOption(o => o.setName('texte').setDescription('Texte ou URL à encoder').setRequired(true))
+        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+
+      // Mod commands
+      new SlashCommandBuilder()
+        .setName('role').setDescription('Donne ou retire un rôle')
+        .addUserOption(o => o.setName('cible').setDescription('Utilisateur cible').setRequired(true))
+        .addRoleOption(o => o.setName('role').setDescription('Rôle à donner/retirer').setRequired(true))
+        .setIntegrationTypes([0]).setContexts([0]),
+      new SlashCommandBuilder()
+        .setName('purge').setDescription('Supprime des messages par catégorie')
+        .addStringOption(o => o.setName('type').setDescription('Type de messages').addChoices(
+          { name: 'Tous', value: 'all' },
+          { name: 'Bots', value: 'bots' },
+          { name: 'Embeds', value: 'embeds' },
+          { name: 'Images', value: 'images' }
+        ).setRequired(true))
+        .addIntegerOption(o => o.setName('count').setDescription('Nombre (défaut: 50)').setRequired(false))
+        .setIntegrationTypes([0]).setContexts([0]),
+
+      // Text commands
+      new SlashCommandBuilder()
+        .setName('reverse').setDescription('Retourne le texte')
+        .addStringOption(o => o.setName('texte').setDescription('Texte à inverser').setRequired(true))
+        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+      new SlashCommandBuilder()
+        .setName('uwu').setDescription('Convertit en texte uwu')
+        .addStringOption(o => o.setName('texte').setDescription('Texte à convertir').setRequired(true))
+        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
+
       // Context Menus
       new ContextMenuCommandBuilder()
         .setName('Ghostping').setType(ApplicationCommandType.User)
@@ -1485,6 +1547,168 @@ export class DiscordManager extends EventEmitter {
             content: `⚠️ La commande "/${commandName}" est en cours de développement.`,
             ephemeral: true
           });
+          break;
+        }
+
+        // Image commands
+        case 'cat': {
+          await this.stealthReply(interaction,
+            `🐱 ${['https://cataas.com/cat', 'https://cataas.com/cat/gif'][Math.floor(Math.random() * 2)]}?t=${Date.now()}`
+          );
+          break;
+        }
+        case 'dog': {
+          const breeds = ['labrador', 'poodle', 'bulldog', 'beagle', 'pug', 'husky', 'corgi'];
+          const breed = breeds[Math.floor(Math.random() * breeds.length)];
+          await this.stealthReply(interaction, `🐕 https://placedog.net/500/400?${breed}&t=${Date.now()}`);
+          break;
+        }
+        case 'meme': {
+          const subreddits = ['memes', 'dankmemes', 'ProgrammerHumor', 'wholesomememes'];
+          const sub = subreddits[Math.floor(Math.random() * subreddits.length)];
+          await this.stealthReply(interaction, `🔥 Meme aléatoire de r/${sub}: https://www.reddit.com/r/${sub}/random`);
+          break;
+        }
+
+        // Voice commands
+        case 'joinvc': {
+          const vcChannel = interaction.options.getChannel('salon');
+          if (!vcChannel || vcChannel.type !== 2) {
+            await interaction.reply({ content: '❌ Salon vocal invalide.', ephemeral: true });
+            return;
+          }
+          try {
+            await (this.selfbot as any).voice?.joinChannel(vcChannel.id, { selfDeaf: true });
+            await interaction.reply({ content: `🔊 Rejoint ${vcChannel.name}`, ephemeral: true });
+          } catch (e) {
+            await interaction.reply({ content: '❌ Impossible de rejoindre le salon vocal.', ephemeral: true });
+          }
+          break;
+        }
+        case 'leavevc': {
+          try {
+            (this.selfbot as any).voice?.disconnect();
+            await interaction.reply({ content: '🔇 Salon vocal quitté.', ephemeral: true });
+          } catch (e) {
+            await interaction.reply({ content: '❌ Pas dans un salon vocal.', ephemeral: true });
+          }
+          break;
+        }
+
+        // Utility commands
+        case 'translate': {
+          const text = interaction.options.getString('texte') || '';
+          const lang = (interaction.options.getString('langue') || 'fr').slice(0, 2);
+          try {
+            const encoded = encodeURIComponent(text);
+            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encoded}`;
+            const response = await fetch(url);
+            const data = await response.json() as any;
+            const translated = data?.[0]?.map((s: any) => s[0]).join('') || text;
+            await this.stealthReply(interaction, `🌐 **Traduit (→${lang})**: ${translated}`);
+          } catch (e) {
+            await interaction.reply({ content: '❌ Erreur de traduction.', ephemeral: true });
+          }
+          break;
+        }
+        case 'weather': {
+          const city = interaction.options.getString('ville') || 'Paris';
+          const encoded = encodeURIComponent(city);
+          const embed = new EmbedBuilder()
+            .setTitle(`🌤️ Météo: ${city}`)
+            .setDescription(`https://wttr.in/${encoded}_0pq_lang=fr.png?m`)
+            .setColor(0x5865F2);
+          await interaction.reply({ embeds: [embed], ephemeral: true });
+          break;
+        }
+        case 'qr': {
+          const text = interaction.options.getString('texte') || 'https://eclipse';
+          const encoded = encodeURIComponent(text);
+          const embed = new EmbedBuilder()
+            .setTitle('📱 QR Code')
+            .setImage(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encoded}`)
+            .setFooter({ text: text })
+            .setColor(0x5865F2);
+          await interaction.reply({ embeds: [embed], ephemeral: true });
+          break;
+        }
+
+        // Mod commands
+        case 'role': {
+          const target = interaction.options.getUser('cible');
+          const role = interaction.options.getRole('role');
+          if (!target || !role) {
+            await interaction.reply({ content: '❌ Arguments requis.', ephemeral: true });
+            return;
+          }
+          const member = interaction.guild?.members.cache.get(target.id);
+          if (!member) {
+            await interaction.reply({ content: '❌ Membre introuvable.', ephemeral: true });
+            return;
+          }
+          try {
+            if (member.roles.cache.has(role.id)) {
+              await (member.roles as any).remove(role);
+              await this.stealthReply(interaction, `🔓 Rôle ${role.name} retiré à ${target.username}`);
+            } else {
+              await (member.roles as any).add(role);
+              await this.stealthReply(interaction, `🔒 Rôle ${role.name} ajouté à ${target.username}`);
+            }
+          } catch (e) {
+            await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          }
+          break;
+        }
+        case 'purge': {
+          const purgeType = interaction.options.getString('type') || 'all';
+          const count = interaction.options.getInteger('count') || 50;
+          const channel = interaction.channel;
+          if (!channel?.isTextBased()) {
+            await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
+            return;
+          }
+          await interaction.deferReply({ ephemeral: true });
+          try {
+            const messages = await channel.messages.fetch({ limit: count });
+            let toDelete: any[] = [];
+            if (purgeType === 'all') {
+              toDelete = [...messages.values()];
+            } else if (purgeType === 'bots') {
+              toDelete = messages.filter((m: any) => m.author.bot).toJSON();
+            } else if (purgeType === 'embeds') {
+              toDelete = messages.filter((m: any) => m.embeds.length > 0).toJSON();
+            } else if (purgeType === 'images') {
+              toDelete = messages.filter((m: any) => m.attachments.size > 0).toJSON();
+            }
+            for (const msg of toDelete) {
+              await msg.delete().catch(() => {});
+              await new Promise(r => setTimeout(r, 200));
+            }
+            await interaction.editReply({ content: `✅ ${toDelete.length} messages supprimés (${purgeType}).` });
+          } catch (e) {
+            await interaction.editReply({ content: '❌ Erreur de purge.' });
+          }
+          break;
+        }
+
+        // Text commands
+        case 'reverse': {
+          const text = interaction.options.getString('texte') || '';
+          const reversed = text.split('').reverse().join('');
+          await this.stealthReply(interaction, `🔄 ${reversed}`);
+          break;
+        }
+        case 'uwu': {
+          const text = interaction.options.getString('texte') || '';
+          const uwuText = text
+            .replace(/r/g, 'w')
+            .replace(/l/g, 'w')
+            .replace(/R/g, 'W')
+            .replace(/L/g, 'W')
+            .replace(/n([aeiou])/g, 'ny$1')
+            .replace(/N([aeiou])/g, 'Ny$1')
+            .replace(/([!?])/g, ' $1 uwu');
+          await this.stealthReply(interaction, `🌸 ${uwuText}`);
           break;
         }
 

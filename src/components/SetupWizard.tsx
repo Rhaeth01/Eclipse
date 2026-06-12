@@ -4,11 +4,21 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Command, ExternalLink, Copy, CheckCircle,
-  ArrowRight, ArrowLeft, Key, Bot, Zap, Shield
+  ArrowRight, ArrowLeft, Key, Bot, Zap, Shield,
+  Loader, AlertCircle
 } from 'lucide-react';
 import { GlowButton } from '@/components/ui/GlowButton';
 
-type WizardStep = 'welcome' | 'instructions' | 'token' | 'done';
+type WizardStep = 'welcome' | 'instructions' | 'token' | 'auto' | 'done';
+
+interface SetupProgress {
+  step: string;
+  message: string;
+  appId?: string;
+  token?: string;
+  authorizeUrl?: string;
+  error?: string;
+}
 
 interface SetupWizardProps {
   open: boolean;
@@ -16,13 +26,24 @@ interface SetupWizardProps {
   onTokenSave: (token: string) => Promise<void>;
   appTokenConfigured: boolean;
   onOpenPortal?: () => void;
+  onAutoSetup?: () => void;
+  setupProgress?: SetupProgress | null;
 }
 
 const STEPS: { id: WizardStep; label: string }[] = [
   { id: 'welcome', label: 'Bienvenue' },
   { id: 'instructions', label: 'Application' },
   { id: 'token', label: 'Token' },
+  { id: 'auto', label: 'Auto' },
   { id: 'done', label: 'Terminé' },
+];
+
+const AUTO_STEPS = [
+  { key: 'creating_app', label: "Création de l'application..." },
+  { key: 'creating_bot', label: 'Configuration du Bot...' },
+  { key: 'getting_token', label: 'Récupération du token...' },
+  { key: 'authorizing', label: 'Autorisation...' },
+  { key: 'complete', label: 'Terminé' },
 ];
 
 export function SetupWizard({
@@ -30,7 +51,9 @@ export function SetupWizard({
   onClose,
   onTokenSave,
   appTokenConfigured,
-  onOpenPortal
+  onOpenPortal,
+  onAutoSetup,
+  setupProgress
 }: SetupWizardProps) {
   const [step, setStep] = useState<WizardStep>('welcome');
   const [token, setToken] = useState('');
@@ -45,6 +68,28 @@ export function SetupWizard({
       setError('');
     }
   }, [open, appTokenConfigured]);
+
+  useEffect(() => {
+    if (setupProgress?.step === 'complete' && setupProgress?.token) {
+      onTokenSave(setupProgress.token)
+        .then(() => { setStep('done'); })
+        .catch((err) => { setError(err?.message || 'Erreur sauvegarde token.'); });
+    }
+    if (setupProgress?.step === 'getting_token' && setupProgress?.token && !appTokenConfigured) {
+      // Token is available, auto-save it immediately
+      onTokenSave(setupProgress.token)
+        .then(() => {
+          if (setupProgress.step !== 'authorizing') setStep('done');
+        })
+        .catch(() => {});
+    }
+  }, [setupProgress?.step, setupProgress?.token]);
+
+  const handleStartAuto = () => {
+    setStep('auto');
+    setError('');
+    onAutoSetup?.();
+  };
 
   const handlePasteFromClipboard = async () => {
     try {
@@ -156,10 +201,18 @@ export function SetupWizard({
                     onClick={() => setStep('instructions')}
                     icon={<ArrowRight className="w-4 h-4" />}
                   >
-                    Configurer maintenant
+                    Configurer manuellement
                   </GlowButton>
                   <GlowButton
                     variant="secondary"
+                    className="w-full"
+                    onClick={handleStartAuto}
+                    icon={<Zap className="w-4 h-4" />}
+                  >
+                    Setup automatique
+                  </GlowButton>
+                  <GlowButton
+                    variant="ghost"
                     className="w-full"
                     onClick={onClose}
                   >
@@ -324,6 +377,116 @@ export function SetupWizard({
                     {saving ? 'Validation...' : 'Enregistrer le token'}
                   </GlowButton>
                 </div>
+              </div>
+            )}
+
+            {/* Step: Auto Setup */}
+            {step === 'auto' && (
+              <div>
+                <h2 className="text-lg font-semibold text-[#e8e6e3] mb-1">
+                  Setup automatique
+                </h2>
+                <p className="text-sm text-[#7a7671] mb-6">
+                  Eclipse crée automatiquement votre application Discord. Aucune action requise.
+                </p>
+
+                <div className="space-y-3 mb-6">
+                  {AUTO_STEPS.map(({ key, label }) => {
+                    const currentIdx = AUTO_STEPS.findIndex(s => s.key === setupProgress?.step);
+                    const stepIdx = AUTO_STEPS.findIndex(s => s.key === key);
+                    const isDone = currentIdx > stepIdx;
+                    const isCurrent = currentIdx === stepIdx;
+                    const isError = setupProgress?.step === 'error' && stepIdx === currentIdx;
+
+                    return (
+                      <div
+                        key={key}
+                        className={`flex items-center gap-3 p-3 rounded-lg border transition-all duration-300 ${
+                          isDone
+                            ? 'bg-[#0c0c0f] border-[#2d9e8a]/20'
+                            : isCurrent
+                            ? 'bg-[#0c0c0f] border-[#e69a00]/30'
+                            : isError
+                            ? 'bg-[#0c0c0f] border-[#d4656b]/20'
+                            : 'bg-[#0c0c0f] border-white/[0.04] opacity-40'
+                        }`}
+                      >
+                        <div className="w-6 h-6 rounded-full flex items-center justify-center shrink-0">
+                          {isDone ? (
+                            <CheckCircle className="w-5 h-5 text-[#2d9e8a]" />
+                          ) : isCurrent ? (
+                            <Loader className="w-5 h-5 text-[#e69a00] animate-spin" />
+                          ) : isError ? (
+                            <AlertCircle className="w-5 h-5 text-[#d4656b]" />
+                          ) : (
+                            <div className="w-2 h-2 rounded-full bg-[#5c5c66]" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm ${isDone ? 'text-[#2d9e8a]' : isCurrent ? 'text-[#e8e6e3]' : 'text-[#5c5c66]'}`}>
+                            {label}
+                          </p>
+                          {isCurrent && setupProgress?.message && (
+                            <p className="text-xs text-[#7a7671] mt-0.5 truncate">
+                              {setupProgress.message}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {setupProgress?.step === 'complete' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center"
+                  >
+                    <p className="text-sm text-[#2d9e8a] mb-4">
+                      Token récupéré avec succès! Redirection vers la confirmation...
+                    </p>
+                  </motion.div>
+                )}
+
+                {setupProgress?.step === 'error' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-lg bg-[#3d1a1e] border border-[#d4656b]/20 text-center"
+                  >
+                    <p className="text-sm text-[#d4656b] mb-3">
+                      {setupProgress.message || 'Une erreur est survenue.'}
+                    </p>
+                    <GlowButton
+                      variant="danger"
+                      size="sm"
+                      onClick={() => setStep('instructions')}
+                    >
+                      Essayer la méthode manuelle
+                    </GlowButton>
+                  </motion.div>
+                )}
+
+                {setupProgress?.step === 'authorizing' && setupProgress?.authorizeUrl && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center"
+                  >
+                    <GlowButton
+                      variant="primary"
+                      className="w-full mb-3"
+                      onClick={() => window.open(setupProgress!.authorizeUrl!, '_blank')}
+                      icon={<ExternalLink className="w-4 h-4" />}
+                    >
+                      Autoriser l&apos;application
+                    </GlowButton>
+                    <p className="text-xs text-[#7a7671]">
+                      Cliquez pour ouvrir la page d&apos;autorisation Discord
+                    </p>
+                  </motion.div>
+                )}
               </div>
             )}
 

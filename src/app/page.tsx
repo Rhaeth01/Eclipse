@@ -41,6 +41,9 @@ export default function Home() {
     },
     onError: (msg) => {
       toast.error('Erreur', { description: msg });
+    },
+    onSetupProgress: (data) => {
+      setSetupProgress(data);
     }
   });
 
@@ -54,6 +57,7 @@ export default function Home() {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [appTokenConfigured, setAppTokenConfigured] = useState(false);
   const [showSetupWizard, setShowSetupWizard] = useState(false);
+  const [setupProgress, setSetupProgress] = useState<any>(null);
 
   const [stealthMode, setStealthMode] = useState(true);
   const [silentTyping, setSilentTyping] = useState(false);
@@ -956,10 +960,12 @@ export default function Home() {
         open={showSetupWizard}
         onClose={() => {
           setShowSetupWizard(false);
+          setSetupProgress(null);
           localStorage.setItem('eclipse_onboarded', 'true');
         }}
         onTokenSave={async (token) => {
           await handleSaveBotToken(token);
+          setSetupProgress(null);
           localStorage.setItem('eclipse_onboarded', 'true');
         }}
         onOpenPortal={() => {
@@ -968,6 +974,10 @@ export default function Home() {
             window.open('https://discord.com/developers/applications', '_blank');
           });
         }}
+        onAutoSetup={() => {
+          wsHook.send({ type: 'auto_setup_bot', appName: 'Eclipse' } as any);
+        }}
+        setupProgress={setupProgress}
         appTokenConfigured={appTokenConfigured}
       />
 
