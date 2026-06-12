@@ -255,7 +255,6 @@ Toutes les contributions sont les bienvenues :
 5. Ouvre une **Pull Request**
 
 **Avant de contribuer :**
-- Lis `AGENTS.md` (la doc interne de l'agent IA)
 - Vérifie que les tests passent (`npm test`)
 - Suis le style existant (ESLint + Prettier)
 - Ajoute des tests pour les nouvelles features
@@ -266,7 +265,9 @@ Toutes les contributions sont les bienvenues :
 - Multi-comptes (alt account support)
 - Web Login OAuth (non-Windows)
 - Server cloner, backup/restore étendu
-- Voir `AGENTS.md` pour la roadmap complète
+- Rich Presence avancé (plateformes Xbox/PS, types Spotify, valeurs dynamiques)
+- Notifications overhaul (centre in-app, webhooks)
+- Voir les [issues GitHub](https://github.com/Rhaeth01/Eclipse/issues) pour les demandes en cours
 
 ---
 
