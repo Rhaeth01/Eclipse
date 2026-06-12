@@ -1,5 +1,6 @@
 mod discord_extractor;
 mod setup_webview;
+use std::io::Write;
 use tauri::{Emitter, Manager};
 
 #[cfg(not(target_os = "android"))]
@@ -48,34 +49,70 @@ pub fn run() {
       use tauri_plugin_shell::ShellExt;
       use tauri_plugin_shell::process::CommandEvent;
 
-      let resource_dir = app.path().resource_dir()
-          .unwrap_or_default();
+      // Resoudre les chemins depuis l'exe en cours d'execution
+      // (beaucoup plus fiable que resource_dir() qui pointe vers un autre dossier
+      // pour les installeurs NSIS sous Windows)
+      let install_dir = match std::env::current_exe() {
+          Ok(exe) => exe.parent().map(|p| p.to_path_buf()).unwrap_or_default(),
+          Err(e) => {
+              eprintln!("[Tauri] Impossible de localiser l'exe: {}", e);
+              let _ = app.emit("core-startup-error", format!("Localisation de l'exe impossible: {}", e));
+              return Ok(());
+          }
+      };
 
-      let node_script_path = resource_dir.join("core").join("dist").join("index.js");
+      // Logger le diagnostic dans un fichier pour debug
+      let log_path = install_dir.join("core_startup.log");
+      let mut log = match std::fs::OpenOptions::new()
+          .create(true)
+          .append(true)
+          .open(&log_path)
+      {
+          Ok(f) => f,
+          Err(e) => {
+              eprintln!("[Tauri] Impossible de creer le log: {}", e);
+              let _ = app.emit("core-startup-error", format!("Log impossible: {}", e));
+              return Ok(());
+          }
+      };
+
+      let node_script_path = install_dir.join("core").join("dist").join("index.js");
+      let node_bundled = install_dir.join("core").join("node.exe");
+
+      let _ = writeln!(log, "--- Eclipse Core startup @ {:?} ---", std::time::SystemTime::now());
+      let _ = writeln!(log, "install_dir: {}", install_dir.display());
+      let _ = writeln!(log, "node_bundled: {} (exists: {})", node_bundled.display(), node_bundled.exists());
+      let _ = writeln!(log, "node_script: {} (exists: {})", node_script_path.display(), node_script_path.exists());
 
       if !node_script_path.exists() {
-          eprintln!("[Tauri] Core introuvable: {}", node_script_path.display());
-          let _ = app.emit("core-startup-error", "Core introuvable. Reinstallez Eclipse.");
+          let err = format!("Core introuvable a {}", node_script_path.display());
+          eprintln!("[Tauri] {}", err);
+          let _ = writeln!(log, "ERREUR: {}", err);
+          let _ = app.emit("core-startup-error", err);
           return Ok(());
       }
 
       let script_path_str = node_script_path.to_string_lossy().to_string();
-
-      let node_bundled = resource_dir.join("core").join("node.exe");
       let spawn_result = if node_bundled.exists() {
-          app.shell().command(node_bundled).args([&script_path_str]).spawn()
+          let _ = writeln!(log, "Spawn node bundle: {}", node_bundled.display());
+          app.shell().command(&node_bundled).args([&script_path_str]).spawn()
       } else {
-          eprintln!("[Tauri] Node.js portable introuvable, fallback sur node systeme");
+          let _ = writeln!(log, "Fallback systeme: node");
           app.shell().command("node").args([&script_path_str]).spawn()
       };
 
       match spawn_result {
           Ok((mut rx, _child)) => {
+              let _ = writeln!(log, "Spawn OK, en ecoute stdout/stderr");
               tauri::async_runtime::spawn(async move {
                   while let Some(event) = rx.recv().await {
                       match event {
-                          CommandEvent::Stdout(line) => println!("[Node Core] {}", String::from_utf8_lossy(&line)),
-                          CommandEvent::Stderr(line) => eprintln!("[Node Error] {}", String::from_utf8_lossy(&line)),
+                          CommandEvent::Stdout(line) => {
+                              println!("[Node Core] {}", String::from_utf8_lossy(&line));
+                          }
+                          CommandEvent::Stderr(line) => {
+                              eprintln!("[Node Error] {}", String::from_utf8_lossy(&line));
+                          }
                           _ => (),
                       }
                   }
@@ -84,6 +121,7 @@ pub fn run() {
           Err(e) => {
               let err_msg = format!("Impossible de demarrer le Core : {}", e);
               eprintln!("[Tauri] {}", err_msg);
+              let _ = writeln!(log, "ERREUR spawn: {}", err_msg);
               let _ = app.emit("core-startup-error", err_msg);
           }
       }
