@@ -35,6 +35,8 @@ core/*.js
 *.pem
 *.key
 !*.key.pub
+AGENTS.md
+REFACTOR_PLAN.md
 temp_*
 
 # debug
