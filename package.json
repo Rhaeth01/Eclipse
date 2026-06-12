@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:all": "cd core && npx tsc && cd .. && npm run tauri dev",
+    "dev:linux": "cd core && npx tsc && concurrently \"npm run dev\" \"node core/dist/index.js\"",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

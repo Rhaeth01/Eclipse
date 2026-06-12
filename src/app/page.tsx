@@ -53,6 +53,8 @@ export default function Home() {
   const updater = useUpdater();
 
   const [appToken, setAppToken] = useState('');
+  const [userToken, setUserToken] = useState('');
+  const [showManualToken, setShowManualToken] = useState(false);
   const [showToken, setShowToken] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [appTokenConfigured, setAppTokenConfigured] = useState(false);
@@ -136,7 +138,18 @@ export default function Home() {
       }
       connect(extractedToken, finalToken);
     } catch (err: any) {
-      toast.error('Erreur d\'extraction', { description: err.message });
+      if (userToken.trim()) {
+        if (finalToken) {
+          localStorage.setItem('eclipse_app_token', finalToken);
+          setAppTokenConfigured(true);
+        }
+        connect(userToken.trim(), finalToken);
+      } else {
+        setShowManualToken(true);
+        toast.error('Token utilisateur requis', {
+          description: err?.message || 'Entrez votre token Discord manuellement.'
+        });
+      }
     } finally {
       setIsLoggingIn(false);
     }
@@ -227,6 +240,30 @@ export default function Home() {
             />
 
             <div className="space-y-4">
+              {showManualToken && (
+                <div>
+                  <label className="text-sm font-medium text-[#7a7671] mb-2 block">
+                    Token utilisateur Discord
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="password"
+                      value={userToken}
+                      onChange={(e) => setUserToken(e.target.value)}
+                      placeholder="Collez votre token utilisateur..."
+                      className="w-full bg-[#0c0c0f] border border-[#d4656b]/20 rounded-lg px-4 py-3
+                               text-[#e8e6e3] placeholder-[#5c5c66]
+                               focus:outline-none focus:border-[#d4656b]/40 focus:ring-1 focus:ring-[#d4656b]/20
+                               transition-all duration-200 text-sm"
+                    />
+                  </div>
+                  <p className="text-xs text-[#d4656b]/70 mt-2">
+                    L&apos;extraction automatique a échoué. Entrez votre token Discord manuellement.
+                    C&apos;est normal sous Linux.
+                  </p>
+                </div>
+              )}
+
               <div>
                 <label className="text-sm font-medium text-[#7a7671] mb-2 block">
                   Application Token
