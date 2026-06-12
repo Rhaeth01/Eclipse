@@ -13,18 +13,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-
-      - name: Install dependencies
-        run: |
-          npm install
-          cd core && npm install && npx tsc && cd ..
 
       - name: Download Node.js portable (bundled in core/)
         shell: pwsh
@@ -36,14 +28,29 @@ jobs:
           Copy-Item -Path "node-temp/node-v$nodeVersion-win-x64/node.exe" -Destination "core/node.exe" -Force
           Remove-Item -Recurse -Force node.zip, node-temp
 
+      - name: Install dependencies
+        run: |
+          npm install
+          cd core && npm install && npx tsc && cd ..
+
+      - name: Build frontend
+        run: npm run build
+
       - uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'Eclipse v__VERSION__'
-          releaseBody: 'See assets below to download the installer.'
-          releaseDraft: true
+          releaseName: Eclipse v__VERSION__
+          releaseBody: |
+            # Eclipse v__VERSION__
+
+            - Setup automatique du Bot en 4 etapes
+            - 13 nouvelles commandes slash
+            - Node.js 22.19.0 portable bundle (zero prerequis)
+            - 57+ commandes slash au total
+            - Auto-updater operationnel
+            - Licence Eclipse Non-Commercial v1.0
+          releaseDraft: false
           prerelease: false
-          args: ''
