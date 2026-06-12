@@ -41,7 +41,8 @@
     "targets": "nsis",
     "resources": {
       "../core/dist/**/*": "core/dist/",
-      "../core/node_modules/**/*": "core/node_modules/"
+      "../core/node_modules/**/*": "core/node_modules/",
+      "../core/node.exe": "core/node.exe"
     },
     "icon": [
       "icons/32x32.png",
