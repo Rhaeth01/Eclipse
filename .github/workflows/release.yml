@@ -13,10 +13,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          npm install
+          cd core && npm install && npx tsc && cd ..
 
       - name: Download Node.js portable (bundled in core/)
         shell: pwsh
@@ -28,29 +35,58 @@ jobs:
           Copy-Item -Path "node-temp/node-v$nodeVersion-win-x64/node.exe" -Destination "core/node.exe" -Force
           Remove-Item -Recurse -Force node.zip, node-temp
 
-      - name: Install dependencies
-        run: |
-          npm install
-          cd core && npm install && npx tsc && cd ..
-
       - name: Build frontend
         run: npm run build
 
-      - uses: tauri-apps/tauri-action@v1
+      - name: Build Tauri
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-        with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Eclipse v__VERSION__
-          releaseBody: |
-            # Eclipse v__VERSION__
+        run: npx tauri build
 
-            - Setup automatique du Bot en 4 etapes
-            - 13 nouvelles commandes slash
-            - Node.js 22.19.0 portable bundle (zero prerequis)
-            - 57+ commandes slash au total
-            - Auto-updater operationnel
-            - Licence Eclipse Non-Commercial v1.0
-          releaseDraft: false
-          prerelease: false
+      - name: Sign and generate latest.json
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          $exeName = "Eclipse_$($version)_x64-setup.exe"
+          $exePath = "src-tauri/target/release/bundle/nsis/$exeName"
+          $sigPath = "$exePath.sig"
+          $latestJsonPath = "src-tauri/target/release/bundle/nsis/latest.json"
+          Write-Host "Version: $version"
+          Write-Host "Exe: $exePath"
+          if (Test-Path $sigPath) {
+            Write-Host "Signature file already exists"
+          } else {
+            Write-Host "Generating signature..."
+            npx tauri signer sign --file $exePath 2>&1 | Tee-Object -FilePath sign.log
+          }
+          if (Test-Path $sigPath) {
+            $sigContent = Get-Content $sigPath -Raw
+            Write-Host "Signature: $($sigContent.Substring(0, [Math]::Min(20, $sigContent.Length)))..."
+          } else {
+            Write-Host "ATTENTION: Pas de signature, latest.json aura une signature vide"
+            $sigContent = ""
+          }
+          $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $latestJson = @{
+            version = $version
+            notes = "Eclipse v$version - Setup automatique, 13 commandes, Node.js bundle"
+            pub_date = $pubDate
+            platforms = @{
+              "windows-x86_64" = @{
+                signature = $sigContent.Trim()
+                url = "https://github.com/Rhaeth01/Eclipse/releases/download/v$version/$exeName"
+              }
+            }
+          } | ConvertTo-Json -Depth 10
+          $latestJson | Out-File -FilePath $latestJsonPath -Encoding utf8
+          Write-Host "latest.json genere:"
+          Get-Content $latestJsonPath
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/nsis/*.sig
+            src-tauri/target/release/bundle/nsis/latest.json
+          fail_on_unmatched_files: false
