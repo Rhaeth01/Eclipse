@@ -97,8 +97,8 @@ npx tauri build          # installer Windows
 Les builds Windows sont générés automatiquement par GitHub Actions à chaque tag :
 
 ```bash
-git tag v0.2.0
-git push origin v0.2.0
+git tag v0.3.0
+git push origin v0.3.0
 ```
 
 La CI compile, signe et publie le `.exe` sur les [Releases GitHub](https://github.com/Rhaeth01/Eclipse/releases).
