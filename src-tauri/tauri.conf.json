@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Eclipse",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "identifier": "app.eclipse.discord",
   "build": {
     "frontendDist": "../out",
@@ -40,8 +40,8 @@
     "active": true,
     "targets": "nsis",
     "resources": {
-      "../core/dist/**/*": "core/dist/",
-      "../core/node_modules/**/*": "core/node_modules/",
+      "../core/dist": "core/dist/",
+      "../core/node_modules": "core/node_modules/",
       "../core/node.exe": "core/node.exe"
     },
     "icon": [
