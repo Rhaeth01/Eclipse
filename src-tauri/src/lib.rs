@@ -1,6 +1,6 @@
 mod discord_extractor;
 mod setup_webview;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 #[cfg(not(target_os = "android"))]
 pub fn run() {
@@ -55,12 +55,21 @@ pub fn run() {
 
       if !node_script_path.exists() {
           eprintln!("[Tauri] Core introuvable: {}", node_script_path.display());
+          let _ = app.emit("core-startup-error", "Core introuvable. Reinstallez Eclipse.");
           return Ok(());
       }
 
       let script_path_str = node_script_path.to_string_lossy().to_string();
 
-      match app.handle().shell().command("node").args([&script_path_str]).spawn() {
+      let node_bundled = resource_dir.join("core").join("node.exe");
+      let spawn_result = if node_bundled.exists() {
+          app.shell().command(node_bundled).args([&script_path_str]).spawn()
+      } else {
+          eprintln!("[Tauri] Node.js portable introuvable, fallback sur node systeme");
+          app.shell().command("node").args([&script_path_str]).spawn()
+      };
+
+      match spawn_result {
           Ok((mut rx, _child)) => {
               tauri::async_runtime::spawn(async move {
                   while let Some(event) = rx.recv().await {
@@ -73,7 +82,9 @@ pub fn run() {
               });
           }
           Err(e) => {
-              eprintln!("[Tauri] Impossible de démarrer le Core Node.js : {}", e);
+              let err_msg = format!("Impossible de demarrer le Core : {}", e);
+              eprintln!("[Tauri] {}", err_msg);
+              let _ = app.emit("core-startup-error", err_msg);
           }
       }
 

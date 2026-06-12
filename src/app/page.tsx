@@ -100,6 +100,16 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const unlisten = listen<string>('core-startup-error', (event) => {
+      toast.error('Core introuvable', {
+        description: event.payload || 'Le backend Node.js n\'a pas pu démarrer.',
+        duration: Infinity
+      });
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, []);
+
+  useEffect(() => {
     const updateState = async () => {
       try {
         const appWindow = getCurrentWindow();

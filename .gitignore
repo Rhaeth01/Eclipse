@@ -23,6 +23,7 @@ src-tauri/target/
 # core build/runtime artifacts
 core/dist/
 core/backups/
+core/node.exe
 core/*.js
 *.db
 *.db-*
