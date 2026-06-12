@@ -39,6 +39,7 @@
   "bundle": {
     "active": true,
     "targets": "nsis",
+    "createUpdaterArtifacts": true,
     "resources": {
       "../core/dist/**/*": "core/dist/",
       "../core/node_modules/**/*": "core/node_modules/",
