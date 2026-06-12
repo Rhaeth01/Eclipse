@@ -54,17 +54,14 @@ jobs:
           Write-Host "Version: $version"
           Write-Host "Exe: $exePath"
           if (Test-Path $sigPath) {
-            Write-Host "Signature file already exists"
+            Write-Host "Signature file already exists (genere par tauri build)"
           } else {
-            Write-Host "Generating signature..."
-            npx tauri signer sign --file $exePath 2>&1 | Tee-Object -FilePath sign.log
+            Write-Host "ATTENTION: Pas de signature, latest.json aura une signature vide"
           }
+          $sigContent = ""
           if (Test-Path $sigPath) {
             $sigContent = Get-Content $sigPath -Raw
             Write-Host "Signature: $($sigContent.Substring(0, [Math]::Min(20, $sigContent.Length)))..."
-          } else {
-            Write-Host "ATTENTION: Pas de signature, latest.json aura une signature vide"
-            $sigContent = ""
           }
           $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
           $latestJson = @{
