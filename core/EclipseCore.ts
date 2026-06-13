@@ -137,11 +137,21 @@ export class EclipseCore {
       }
     });
 
-    // Connecter la DB
-    this.dbService.connect();
+    try {
+      // Connecter la DB (peut échouer si better-sqlite3 corrompu/permissions)
+      this.dbService.connect();
+    } catch (err) {
+      logger.error('EclipseCore', 'DB connect a échoué (mode degrade)', err);
+    }
 
-    // Démarrer le WebSocket
-    this.wsService.start();
+    try {
+      // Démarrer le WebSocket (essentiel — c'est le canal de communication)
+      this.wsService.start();
+    } catch (err) {
+      logger.error('EclipseCore', 'WebSocket start a échoué (CRITIQUE)', err);
+      // On propage : si le WS échoue, le frontend ne pourra pas se connecter
+      throw err;
+    }
 
     this.isRunning = true;
     logger.info('EclipseCore', '=== Eclipse Core prêt ===');
@@ -211,21 +221,26 @@ export class EclipseCore {
   }
 
   private restoreState(): void {
-    const state = this.stateService.restore();
-    this.commandStealth = state.stealthMode;
-    this.silentTyping = state.silentTyping;
+    try {
+      const state = this.stateService.restore();
+      this.commandStealth = state.stealthMode;
+      this.silentTyping = state.silentTyping;
 
-    logger.info('EclipseCore', `État restauré - Stealth: ${this.commandStealth}, SilentTyping: ${this.silentTyping}`);
+      logger.info('EclipseCore', `État restauré - Stealth: ${this.commandStealth}, SilentTyping: ${this.silentTyping}`);
 
-    // Notifier le frontend du mode stealth restauré
-    const firstClient = this.wsService.getFirstClientId();
-    if (firstClient) {
-      this.wsService.sendToClient(firstClient, {
-        type: 'status',
-        message: 'state_restored',
-        stealthMode: this.commandStealth,
-        silentTyping: this.silentTyping
-      } as any);
+      // Notifier le frontend du mode stealth restauré
+      const firstClient = this.wsService.getFirstClientId();
+      if (firstClient) {
+        this.wsService.sendToClient(firstClient, {
+          type: 'status',
+          message: 'state_restored',
+          stealthMode: this.commandStealth,
+          silentTyping: this.silentTyping
+        } as any);
+      }
+    } catch (err) {
+      logger.error('EclipseCore', 'Erreur restauration etat (mode degrade, defaut applique)', err);
+      // Valeurs par défaut déjà en place (stealth=true, silentTyping=false)
     }
   }
 

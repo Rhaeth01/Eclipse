@@ -103,15 +103,26 @@ pub fn run() {
 
       match spawn_result {
           Ok((mut rx, _child)) => {
-              let _ = writeln!(log, "Spawn OK, en ecoute stdout/stderr");
+              let _ = writeln!(log, "Spawn OK, en ecoute stdout/stderr/terminated");
               tauri::async_runtime::spawn(async move {
                   while let Some(event) = rx.recv().await {
                       match event {
                           CommandEvent::Stdout(line) => {
                               println!("[Node Core] {}", String::from_utf8_lossy(&line));
+                              let _ = writeln!(log, "[Node stdout] {}", String::from_utf8_lossy(&line));
                           }
                           CommandEvent::Stderr(line) => {
                               eprintln!("[Node Error] {}", String::from_utf8_lossy(&line));
+                              let _ = writeln!(log, "[Node stderr] {}", String::from_utf8_lossy(&line));
+                          }
+                          CommandEvent::Terminated(payload) => {
+                              let code = payload.code.unwrap_or(-1);
+                              let err_msg = format!("Le Core s'est arrete (exit code: {})", code);
+                              eprintln!("[Tauri] {}", err_msg);
+                              let _ = writeln!(log, "[Node terminated] exit_code: {}, signal: {:?}", code, payload.signal);
+                              // Note: on ne peut pas emettre depuis un async move Spawn (AppHandle non-Send).
+                              // Le crash est logue dans core_startup.log cote exe.
+                              // Le frontend detectera la deconnexion WebSocket.
                           }
                           _ => (),
                       }

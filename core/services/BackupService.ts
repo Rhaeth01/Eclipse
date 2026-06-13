@@ -4,6 +4,7 @@
  */
 
 import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import { DiscordUserClient } from '../discord';
 import { logger } from './Logger';
@@ -45,7 +46,19 @@ export class BackupService {
 
   constructor(backupDir?: string) {
     this.backupDir = backupDir || path.join(__dirname, '..', 'backups');
-    this.ensureBackupDir();
+    try {
+      this.ensureBackupDir();
+    } catch (err) {
+      logger.error('Backup', 'Impossible de creer le dossier de backup, fallback vers tmp', err);
+      // Fallback : utiliser le repertoire temporaire du systeme
+      this.backupDir = path.join(os.tmpdir(), 'eclipse-backups');
+      try {
+        this.ensureBackupDir();
+      } catch (err2) {
+        logger.error('Backup', 'Echec total : impossible de creer un dossier de backup', err2);
+        // On continue sans crash — les backups seront silencieusement echouees a l'ecriture
+      }
+    }
   }
 
   private ensureBackupDir(): void {

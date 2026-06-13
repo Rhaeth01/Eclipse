@@ -37,6 +37,7 @@ core/*.js
 *.key
 !*.key.pub
 AGENTS.md
+PLAN_*.md
 REFACTOR_PLAN.md
 temp_*
 
