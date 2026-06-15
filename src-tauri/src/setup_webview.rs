@@ -143,36 +143,45 @@ const SETUP_INIT_SCRIPT: &str = r###"
     currentStep = ctx;
     hideBanner();
 
+    // Always clear any previous per-page intervals to avoid leaks
+    if (scanForTokenInterval) { clearInterval(scanForTokenInterval); scanForTokenInterval = null; }
+    if (clipboardInterval) { clearInterval(clipboardInterval); clipboardInterval = null; }
+
     switch(ctx) {
       case 'applications-list':
         showBanner('1/4) Creez une nouvelle application nommee "' + APP_NAME + '"');
+        // No token/clipboard polling on the list page (Discord SPA is heavy)
         break;
       case 'app-detail':
       case 'app-info':
         showBanner('2/4) Allez dans l\'onglet "Bot" a gauche');
         setTimeout(function() { autoFillAppName(); }, 500);
         notifyAppId();
+        // Clipboard monitoring is enough on the detail page; token isn't shown yet
+        clipboardInterval = setInterval(checkClipboard, 2000);
         break;
       case 'app-oauth2':
         showBanner('2/4) Allez dans l\'onglet "Bot" a gauche (pas OAuth2)');
         notifyAppId();
+        clipboardInterval = setInterval(checkClipboard, 2000);
         break;
       case 'app-bot':
         showBanner('3/4) Cliquez "Add Bot" puis "Copy Token"');
         notifyAppId();
-        // Scan for token (maybe already on page)
+        // Scan for token (maybe already on page) + clipboard monitoring
         scanForTokenInterval = setInterval(function() {
           var token = scanForToken();
           if (token) sendToken(token);
         }, 1000);
+        clipboardInterval = setInterval(checkClipboard, 2000);
         break;
       case 'login':
         showBanner('Connectez-vous a Discord pour continuer');
         break;
+      default:
+        // Unknown page: keep intervals cleared to avoid CPU drain
+        break;
     }
-
-    // Always start clipboard monitoring
-    clipboardInterval = setInterval(checkClipboard, 2000);
   }
 
   var scanForTokenInterval = null;
@@ -196,9 +205,21 @@ const SETUP_INIT_SCRIPT: &str = r###"
     setTimeout(onNavigation, 500);
   });
 
-  // DOM mutation observer for content changes (token appears dynamically)
+  // DOM mutation observer for content changes (token appears dynamically).
+  // CRITICAL: must be throttled. Discord.com SPA fires thousands of mutations/sec
+  // (chat list, presence, etc.). Without throttling, scanForToken() — which walks
+  // every text node on the page — pegs the CPU and freezes the WebView2 window
+  // (white screen of death). 1.5s interval is a good balance: responsive enough
+  // to catch a token that's copied/displayed, cheap enough to never freeze.
+  var lastScanAt = 0;
+  var SCAN_THROTTLE_MS = 1500;
   var bodyObserver = new MutationObserver(function() {
     if (tokenExtracted) return;
+    var now = Date.now();
+    if (now - lastScanAt < SCAN_THROTTLE_MS) return;
+    lastScanAt = now;
+    // Only scan when we're on a page where a token can appear.
+    if (currentStep !== 'app-bot' && currentStep !== 'app-detail') return;
     var token = scanForToken();
     if (token) sendToken(token);
   });
