@@ -73,12 +73,20 @@ export default function Home() {
 
   const [activeTab, setActiveTab] = useState('dashboard');
 
+  // v0.4.0: charge le bot token depuis le secure store (AES-256-GCM chiffré,
+  // stocké dans %APPDATA%/Eclipse/secure.bin) au lieu de localStorage en clair.
   useEffect(() => {
-    const saved = localStorage.getItem('eclipse_app_token');
-    if (saved) {
-      setAppToken(saved);
-      setAppTokenConfigured(true);
-    }
+    (async () => {
+      try {
+        const saved = await invoke<string | null>('load_bot_token');
+        if (saved) {
+          setAppToken(saved);
+          setAppTokenConfigured(true);
+        }
+      } catch {
+        // Pas de token stocké ou erreur de déchiffrement — comportement normal au premier lancement
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -159,20 +167,31 @@ export default function Home() {
     wsHook.send({ type: 'hybrid_setup_bot', appId } as any);
   };
 
+  // v0.4.0: stocke le bot token dans le secure store (AES-256-GCM via Tauri)
+  // au lieu de localStorage en clair.
+  const persistBotToken = async (token: string) => {
+    try {
+      await invoke<string>('store_bot_token', { token: token.trim() });
+    } catch (err: any) {
+      toast.error('Erreur sauvegarde token', { description: err?.message || 'Impossible de stocker le token de manière sécurisée.' });
+      throw err;
+    }
+  };
+
   const handleLogin = async (skipBot: boolean = false) => {
     const finalToken = skipBot ? undefined : appToken.trim() || undefined;
     setIsLoggingIn(true);
     try {
       const extractedToken = await invoke<string>('get_discord_token');
       if (finalToken) {
-        localStorage.setItem('eclipse_app_token', finalToken);
+        await persistBotToken(finalToken);
         setAppTokenConfigured(true);
       }
       connect(extractedToken, finalToken);
     } catch (err: any) {
       if (userToken.trim()) {
         if (finalToken) {
-          localStorage.setItem('eclipse_app_token', finalToken);
+          await persistBotToken(finalToken);
           setAppTokenConfigured(true);
         }
         connect(userToken.trim(), finalToken);
@@ -192,7 +211,7 @@ export default function Home() {
       toast.error('Token invalide', { description: 'Le token doit contenir au moins 10 caractères.' });
       return;
     }
-    localStorage.setItem('eclipse_app_token', token.trim());
+    await persistBotToken(token.trim());
     setAppToken(token.trim());
     setAppTokenConfigured(true);
     wsHook.send({ type: 'save_bot_token', appToken: token.trim() } as any);
@@ -923,8 +942,13 @@ export default function Home() {
                           <GlowButton
                             variant="secondary"
                             className="w-full"
-                            onClick={() => {
-                              localStorage.removeItem('eclipse_app_token');
+                            onClick={async () => {
+                              try {
+                                await invoke('clear_bot_token');
+                              } catch (err: any) {
+                                toast.error('Erreur', { description: err?.message || 'Impossible de supprimer le token.' });
+                                return;
+                              }
                               setAppToken('');
                               setAppTokenConfigured(false);
                               toast.info('Token retiré', { description: 'Les Slash Commands sont maintenant désactivés.' });
@@ -1013,7 +1037,10 @@ export default function Home() {
                       <GlowButton variant="danger" className="w-full" onClick={() => { clearLogs(); toast.success('Logs effacés'); }}>
                         Effacer tous les logs
                       </GlowButton>
-                      <GlowButton variant="danger" className="w-full" onClick={() => { localStorage.removeItem('eclipse_app_token'); window.location.reload(); }}>
+                      <GlowButton variant="danger" className="w-full" onClick={async () => {
+                        try { await invoke('clear_bot_token'); } catch {}
+                        window.location.reload();
+                      }}>
                         Réinitialiser l&apos;état
                       </GlowButton>
                     </div>

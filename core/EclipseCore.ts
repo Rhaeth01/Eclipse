@@ -23,6 +23,7 @@ import * as path from 'path';
 export interface EclipseCoreConfig {
   port: number;
   backupDir?: string;
+  wsSecret?: string;
 }
 
 export class EclipseCore {
@@ -46,7 +47,7 @@ export class EclipseCore {
 
   constructor(config: EclipseCoreConfig) {
     // Services
-    this.wsService = new WebSocketService({ port: config.port });
+    this.wsService = new WebSocketService({ port: config.port, expectedSecret: config.wsSecret });
     this.animationService = new AnimationService();
     this.dbService = new DatabaseService();
     this.backupService = new BackupService(config.backupDir);

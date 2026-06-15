@@ -56,7 +56,8 @@ export interface UseWebSocketReturn {
   connect: (token: string, appToken?: string) => void;
   disconnect: () => void;
   send: (message: Omit<WsMessage, 'timestamp'>) => boolean;
-  
+  authenticateWs: () => Promise<void>;
+
   // WebSocket ref
   ws: React.MutableRefObject<WebSocket | null>;
 }
@@ -144,6 +145,22 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     } as any);
   }, [send, addLog]);
 
+  // v0.4.0: authentifier la connexion WS avec le secret Tauri
+  const authenticateWs = useCallback(async () => {
+    if (ws.current?.readyState !== WebSocket.OPEN) return;
+    try {
+      const { invoke } = await import('@tauri-apps/api/core');
+      const secret = await invoke<string | null>('get_ws_secret');
+      if (secret) {
+        ws.current.send(JSON.stringify({ type: 'auth', secret }));
+        addLog('Authentification WS...', 'info');
+      }
+    } catch (err) {
+      // En mode dev (hors Tauri), pas de secret = pas d'auth = OK
+      addLog(`Auth WS ignorée (mode dev): ${err}`, 'info');
+    }
+  }, [addLog]);
+
   // Disconnect
   const disconnect = useCallback(() => {
     ws.current?.close();
@@ -226,6 +243,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
           reconnectAttempts.current = 0;
           setStatus('connected');
           addLog('Connecté au Core local', 'success');
+          // v0.4.0: authentifier la connexion WS avec le secret Tauri
+          authenticateWs();
         };
 
         socket.onclose = () => {
@@ -333,6 +352,7 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     connect,
     disconnect,
     send,
+    authenticateWs,
     ws
   };
 }

@@ -56,6 +56,20 @@ const SETUP_INIT_SCRIPT: &str = r###"
 
   function sendToken(token) {
     if (tokenExtracted || !token || token.length < 20) return;
+    // Security v0.4.0: ne déclencher l'extraction que sur la page bot, avec un
+    // marker DOM spécifique. Avant : n'importe quel string de 20+ chars dans
+    // n'importe quelle page Discord pouvait être traité comme un token.
+    var path = window.location.pathname;
+    if (!/^\/developers\/applications\/\d+\/bot/.test(path)) {
+      return; // Pas sur la page bot, on ignore
+    }
+    var tokenEl = document.querySelector('pre, code, [class*="token"]');
+    // Le token Discord est affiché dans un élément <pre> ou <code> après le
+    // clic sur "Copy Token". On vérifie que le token détecté est dans un
+    // tel élément (pas dans le texte d'un message utilisateur).
+    if (!tokenEl || !tokenEl.textContent || tokenEl.textContent.indexOf(token) === -1) {
+      return; // Token non présent dans un élément de type code/pre
+    }
     tokenExtracted = true;
     showBanner('Token detecte! Configuration terminee.', 'success');
     try {
@@ -256,14 +270,50 @@ pub fn open_setup_webview(app: AppHandle) -> Result<(), String> {
 
 #[tauri::command]
 pub fn bot_token_extracted(app: AppHandle, token: String) -> Result<(), String> {
+    // Validation : un token Discord fait entre 50 et 100 caractères et n'utilise
+    // que [A-Za-z0-9._-]. Sans cette validation, n'importe quel string de 20+
+    // chars émis par une page Discord compromise pourrait être traité comme un
+    // token (cf. audit v0.4.0).
+    if !is_valid_discord_token(&token) {
+        return Err(format!(
+            "Token invalide: doit faire 50-100 chars et n'utiliser que [A-Za-z0-9._-] (reçu {} chars)",
+            token.len()
+        ));
+    }
     app.emit("bot-token-extracted", token)
         .map_err(|e| format!("Erreur émission événement: {}", e))
 }
 
 #[tauri::command]
 pub fn bot_app_id_extracted(app: AppHandle, app_id: String) -> Result<(), String> {
+    // Un App ID Discord est un snowflake de 17-20 chiffres.
+    if !is_valid_discord_snowflake(&app_id) {
+        return Err(format!(
+            "App ID invalide: doit être un snowflake de 17-20 chiffres (reçu {} chars)",
+            app_id.len()
+        ));
+    }
     app.emit("bot-app-id-extracted", app_id)
         .map_err(|e| format!("Erreur émission événement: {}", e))
+}
+
+/// Valide qu'un string ressemble à un token Discord.
+/// Format : 50-100 caractères alphanumériques + . _ -
+fn is_valid_discord_token(token: &str) -> bool {
+    let len = token.len();
+    if len < 50 || len > 100 {
+        return false;
+    }
+    token.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-')
+}
+
+/// Valide qu'un string est un snowflake Discord (17-20 chiffres).
+fn is_valid_discord_snowflake(s: &str) -> bool {
+    let len = s.len();
+    if len < 17 || len > 20 {
+        return false;
+    }
+    s.chars().all(|c| c.is_ascii_digit())
 }
 
 #[tauri::command]

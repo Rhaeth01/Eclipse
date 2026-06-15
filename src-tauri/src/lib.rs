@@ -1,4 +1,5 @@
 mod discord_extractor;
+mod secure_store;
 mod setup_webview;
 use std::io::Write;
 use tauri::{Emitter, Manager};
@@ -148,6 +149,10 @@ pub fn run() {
     })
     .invoke_handler(tauri::generate_handler![
       discord_extractor::get_discord_token,
+      secure_store::store_bot_token,
+      secure_store::load_bot_token,
+      secure_store::clear_bot_token,
+      secure_store::get_ws_secret,
       setup_webview::open_setup_webview,
       setup_webview::bot_token_extracted,
       setup_webview::bot_app_id_extracted,

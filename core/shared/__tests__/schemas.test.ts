@@ -4,6 +4,7 @@ import {
   SaveBotTokenSchema,
   BotTokenSavedSchema,
   HybridSetupBotSchema,
+  WsAuthSchema,
   validateWsMessage,
 } from '../schemas';
 
@@ -166,6 +167,47 @@ describe('HybridSetupBotSchema (v0.3.4)', () => {
     const result = validateWsMessage({
       type: 'hybrid_setup_bot',
       appId: '987654321098765432',
+    });
+    expect(result.success).toBe(true);
+  });
+});
+
+describe('WsAuthSchema (v0.4.0 security)', () => {
+  it('validates a normal auth message with a 32+ char secret', () => {
+    const result = WsAuthSchema.safeParse({
+      type: 'auth',
+      secret: 'a'.repeat(32),
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('validates a base64 secret', () => {
+    const result = WsAuthSchema.safeParse({
+      type: 'auth',
+      secret: 'k6J9bE2VnQ4mP8xR3tY7wZ0aB1cD5eF6gH7iJ8kL9mN=',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects a too-short secret', () => {
+    const result = WsAuthSchema.safeParse({
+      type: 'auth',
+      secret: 'short',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects missing secret', () => {
+    const result = WsAuthSchema.safeParse({
+      type: 'auth',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('validateWsMessage accepts auth message', () => {
+    const result = validateWsMessage({
+      type: 'auth',
+      secret: 'x'.repeat(44),
     });
     expect(result.success).toBe(true);
   });
