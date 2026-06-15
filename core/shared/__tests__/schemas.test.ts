@@ -3,6 +3,7 @@ import {
   InitMessageSchema,
   SaveBotTokenSchema,
   BotTokenSavedSchema,
+  HybridSetupBotSchema,
   validateWsMessage,
 } from '../schemas';
 
@@ -133,5 +134,39 @@ describe('validateWsMessage', () => {
     if (!result.success) {
       expect(result.error).toBeDefined();
     }
+  });
+});
+
+describe('HybridSetupBotSchema (v0.3.4)', () => {
+  it('validates a valid Discord snowflake appId', () => {
+    const result = HybridSetupBotSchema.safeParse({
+      type: 'hybrid_setup_bot',
+      appId: '123456789012345678', // 18 chiffres
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('rejects an appId that is not a snowflake (too short)', () => {
+    const result = HybridSetupBotSchema.safeParse({
+      type: 'hybrid_setup_bot',
+      appId: '12345',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an appId containing non-digits', () => {
+    const result = HybridSetupBotSchema.safeParse({
+      type: 'hybrid_setup_bot',
+      appId: 'abc123456789012345',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it('validateWsMessage accepts hybrid_setup_bot', () => {
+    const result = validateWsMessage({
+      type: 'hybrid_setup_bot',
+      appId: '987654321098765432',
+    });
+    expect(result.success).toBe(true);
   });
 });

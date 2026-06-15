@@ -35,7 +35,7 @@ export type WsMessageType =
   // Bot token management
   | 'save_bot_token' | 'bot_token_saved'
   // Auto setup
-  | 'auto_setup_bot' | 'setup_progress';
+  | 'auto_setup_bot' | 'hybrid_setup_bot' | 'setup_progress';
 
 export interface WsBaseMessage {
   type: WsMessageType;
@@ -260,6 +260,11 @@ export interface AutoSetupBotMessage extends WsBaseMessage {
   appName?: string;
 }
 
+export interface HybridSetupBotMessage extends WsBaseMessage {
+  type: 'hybrid_setup_bot';
+  appId: string;
+}
+
 export interface SetupProgressMessage extends WsBaseMessage {
   type: 'setup_progress';
   step: string;
@@ -372,6 +377,7 @@ export type WsMessage =
   | AutobumpStatusMessage
   | SaveBotTokenMessage
   | AutoSetupBotMessage
+  | HybridSetupBotMessage
   // Core -> Client
   | DiscordReadyMessage
   | StatusMessage

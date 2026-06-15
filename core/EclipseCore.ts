@@ -271,6 +271,15 @@ export class EclipseCore {
       return;
     }
 
+    // hybrid_setup_bot : App ID déjà connu, on finalise via API
+    if (message.type === 'hybrid_setup_bot') {
+      const appId = (message as any).appId;
+      if (appId) {
+        await this.botSetupService.runHybridSetup(clientId, appId);
+      }
+      return;
+    }
+
     // Vérifier que Discord est connecté pour les autres messages
     if (!this.discordManager.getSelfbot()?.isReady()) {
       const errorMsg: ErrorMessage = {

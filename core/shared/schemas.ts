@@ -201,6 +201,11 @@ export const AutoSetupBotSchema = z.object({
   appName: z.string().optional()
 });
 
+export const HybridSetupBotSchema = z.object({
+  type: z.literal('hybrid_setup_bot'),
+  appId: z.string().regex(/^\d{17,20}$/, 'App ID must be a Discord snowflake')
+});
+
 export const SetupProgressSchema = z.object({
   type: z.literal('setup_progress'),
   step: z.string(),
@@ -308,6 +313,7 @@ export const WsMessageSchema = z.discriminatedUnion('type', [
   AutobumpStatusSchema,
   SaveBotTokenSchema,
   AutoSetupBotSchema,
+  HybridSetupBotSchema,
   // Core -> Client
   DiscordReadySchema,
   StatusSchema,

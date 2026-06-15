@@ -120,6 +120,24 @@ const SETUP_INIT_SCRIPT: &str = r###"
     return 'unknown';
   }
 
+  function extractAppId() {
+    var match = window.location.pathname.match(/^\/developers\/applications\/(\d+)/);
+    return match ? match[1] : null;
+  }
+
+  function notifyAppId() {
+    if (window.__eclipseAppIdNotified) return;
+    var id = extractAppId();
+    if (!id) return;
+    window.__eclipseAppIdNotified = true;
+    try {
+      window.__TAURI_INTERNALS__.invoke('bot_app_id_extracted', { appId: id });
+      showBanner('App ID detecte! Configuration du Bot en cours...', 'success');
+    } catch(e) {
+      console.error('[Eclipse Setup] Failed to send app id:', e);
+    }
+  }
+
   function onNavigation() {
     var ctx = getPageContext();
     currentStep = ctx;
@@ -133,12 +151,15 @@ const SETUP_INIT_SCRIPT: &str = r###"
       case 'app-info':
         showBanner('2/4) Allez dans l\'onglet "Bot" a gauche');
         setTimeout(function() { autoFillAppName(); }, 500);
+        notifyAppId();
         break;
       case 'app-oauth2':
         showBanner('2/4) Allez dans l\'onglet "Bot" a gauche (pas OAuth2)');
+        notifyAppId();
         break;
       case 'app-bot':
         showBanner('3/4) Cliquez "Add Bot" puis "Copy Token"');
+        notifyAppId();
         // Scan for token (maybe already on page)
         scanForTokenInterval = setInterval(function() {
           var token = scanForToken();
@@ -215,6 +236,12 @@ pub fn open_setup_webview(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn bot_token_extracted(app: AppHandle, token: String) -> Result<(), String> {
     app.emit("bot-token-extracted", token)
+        .map_err(|e| format!("Erreur émission événement: {}", e))
+}
+
+#[tauri::command]
+pub fn bot_app_id_extracted(app: AppHandle, app_id: String) -> Result<(), String> {
+    app.emit("bot-app-id-extracted", app_id)
         .map_err(|e| format!("Erreur émission événement: {}", e))
 }
 

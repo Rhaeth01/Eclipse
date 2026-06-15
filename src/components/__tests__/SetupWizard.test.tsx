@@ -20,6 +20,30 @@ function renderWizard(overrides: Partial<Parameters<typeof SetupWizard>[0]> = {}
   );
 }
 
+function renderWizardAndRerender(initialOverrides: Partial<Parameters<typeof SetupWizard>[0]>, rerenderOverrides: Partial<Parameters<typeof SetupWizard>[0]>) {
+  const utils = render(
+    <SetupWizard
+      open={true}
+      onClose={mockOnClose}
+      onTokenSave={mockOnTokenSave}
+      appTokenConfigured={false}
+      onOpenPortal={mockOnOpenPortal}
+      {...initialOverrides}
+    />
+  );
+  utils.rerender(
+    <SetupWizard
+      open={true}
+      onClose={mockOnClose}
+      onTokenSave={mockOnTokenSave}
+      appTokenConfigured={false}
+      onOpenPortal={mockOnOpenPortal}
+      {...rerenderOverrides}
+    />
+  );
+  return utils;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   Object.assign(navigator, {
@@ -54,11 +78,12 @@ describe('SetupWizard', () => {
       expect(await screen.findByText("Créer une application Discord")).toBeInTheDocument();
     });
 
-    it('has a "Plus tard" button that calls onClose', async () => {
+    it('has a "Setup hybride" button that opens the setup webview', async () => {
       renderWizard();
-      const btn = screen.getByText('Plus tard');
+      const btn = screen.getByText(/Setup hybride/);
       await userEvent.click(btn);
-      expect(mockOnClose).toHaveBeenCalledTimes(1);
+      expect(mockOnOpenPortal).toHaveBeenCalledTimes(1);
+      expect(await screen.findByText(/Une fenêtre Discord s/)).toBeInTheDocument();
     });
   });
 
@@ -215,6 +240,43 @@ describe('SetupWizard', () => {
       const link = screen.getByText('discord.com/developers/applications');
       await userEvent.click(link);
       expect(window.open).toHaveBeenCalledWith('https://discord.com/developers/applications', '_blank');
+    });
+  });
+
+  describe('Hybrid setup flow (v0.3.4)', () => {
+    it('shows hybrid instructions after clicking Setup hybride', async () => {
+      renderWizard();
+      await userEvent.click(screen.getByText(/Setup hybride/));
+      expect(mockOnOpenPortal).toHaveBeenCalledTimes(1);
+      expect(await screen.findByText(/Une fenêtre Discord s/)).toBeInTheDocument();
+      expect(screen.getByText(/L'App ID est détecté automatiquement/)).toBeInTheDocument();
+    });
+
+    it('displays captcha_required fallback in the hybrid step', async () => {
+      // Start with no setupProgress (welcome screen), then re-render with
+      // captcha_required → useEffect auto-switches to 'hybrid' step.
+      renderWizardAndRerender({}, { setupProgress: { step: 'captcha_required', message: 'Discord bloque aussi cette étape.' } as any });
+      await waitFor(() => {
+        expect(screen.getAllByText(/Discord bloque aussi cette étape/).length).toBeGreaterThan(0);
+      });
+      expect(screen.getByText(/Méthode manuelle/)).toBeInTheDocument();
+    });
+
+    it('shows hybrid step progress when create_bot step is broadcast', async () => {
+      // Start in welcome, click hybrid, then re-render with in-progress progress.
+      const utils = renderWizard();
+      await userEvent.click(screen.getByText(/Setup hybride/));
+      utils.rerender(
+        <SetupWizard
+          open={true}
+          onClose={mockOnClose}
+          onTokenSave={mockOnTokenSave}
+          appTokenConfigured={false}
+          onOpenPortal={mockOnOpenPortal}
+          setupProgress={{ step: 'creating_bot', message: 'Ajout du Bot...' } as any}
+        />
+      );
+      expect(await screen.findByText(/Configuration du Bot/)).toBeInTheDocument();
     });
   });
 });

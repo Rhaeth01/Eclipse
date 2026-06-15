@@ -100,6 +100,16 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const unlisten = listen<string>('bot-app-id-extracted', (event) => {
+      const appId = event.payload;
+      if (appId && /^\d{17,20}$/.test(appId)) {
+        wsHook.send({ type: 'hybrid_setup_bot', appId } as any);
+      }
+    });
+    return () => { unlisten.then(fn => fn()); };
+  }, [wsHook]);
+
+  useEffect(() => {
     const unlisten = listen<string>('core-startup-error', (event) => {
       toast.error('Core introuvable', {
         description: event.payload || 'Le backend Node.js n\'a pas pu démarrer.',
@@ -136,6 +146,18 @@ export default function Home() {
       document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
+
+  const handleHybridSetup = async (appId: string) => {
+    if (!appId || !/^\d{17,20}$/.test(appId)) {
+      toast.error('App ID invalide', { description: 'L\'App ID doit être un nombre à 17-20 chiffres.' });
+      return;
+    }
+    if (!isDiscordConnected) {
+      toast.error('Connectez-vous d\'abord', { description: 'Le Core doit être connecté avant de configurer le Bot.' });
+      return;
+    }
+    wsHook.send({ type: 'hybrid_setup_bot', appId } as any);
+  };
 
   const handleLogin = async (skipBot: boolean = false) => {
     const finalToken = skipBot ? undefined : appToken.trim() || undefined;

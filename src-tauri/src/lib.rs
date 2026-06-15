@@ -150,6 +150,7 @@ pub fn run() {
       discord_extractor::get_discord_token,
       setup_webview::open_setup_webview,
       setup_webview::bot_token_extracted,
+      setup_webview::bot_app_id_extracted,
       setup_webview::close_setup_webview
     ])
     .run(tauri::generate_context!())

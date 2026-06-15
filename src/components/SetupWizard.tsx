@@ -5,11 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Command, ExternalLink, Copy, CheckCircle,
   ArrowRight, ArrowLeft, Key, Bot, Zap, Shield,
-  Loader, AlertCircle
+  Loader, AlertCircle, Globe, ShieldAlert
 } from 'lucide-react';
 import { GlowButton } from '@/components/ui/GlowButton';
 
-type WizardStep = 'welcome' | 'instructions' | 'token' | 'auto' | 'done';
+type WizardStep = 'welcome' | 'instructions' | 'token' | 'auto' | 'hybrid' | 'done';
 
 interface SetupProgress {
   step: string;
@@ -35,15 +35,23 @@ const STEPS: { id: WizardStep; label: string }[] = [
   { id: 'instructions', label: 'Application' },
   { id: 'token', label: 'Token' },
   { id: 'auto', label: 'Auto' },
+  { id: 'hybrid', label: 'Hybride' },
   { id: 'done', label: 'Terminé' },
 ];
 
 const AUTO_STEPS = [
   { key: 'creating_app', label: "Création de l'application..." },
-  { key: 'creating_bot', label: 'Configuration du Bot...' },
-  { key: 'getting_token', label: 'Récupération du token...' },
-  { key: 'authorizing', label: 'Autorisation...' },
-  { key: 'complete', label: 'Terminé' },
+  { key: 'creating_bot', label: "Configuration du Bot..." },
+  { key: 'getting_token', label: "Récupération du token..." },
+  { key: 'authorizing', label: "Autorisation..." },
+  { key: 'complete', label: "Terminé" },
+];
+
+const HYBRID_STEPS = [
+  { key: 'creating_bot', label: "Configuration du Bot..." },
+  { key: 'getting_token', label: "Récupération du token..." },
+  { key: 'authorizing', label: "Autorisation..." },
+  { key: 'complete', label: "Terminé" },
 ];
 
 export function SetupWizard({
@@ -83,12 +91,26 @@ export function SetupWizard({
         })
         .catch(() => {});
     }
+    if (setupProgress?.step === 'captcha_required') {
+      // Bascule auto vers le setup hybride (sans captcha)
+      setError('');
+      setStep('hybrid');
+    }
   }, [setupProgress?.step, setupProgress?.token]);
 
   const handleStartAuto = () => {
     setStep('auto');
     setError('');
     onAutoSetup?.();
+  };
+
+  const handleStartHybrid = () => {
+    setStep('hybrid');
+    setError('');
+    // Ouvre le setup_webview (parent déclenche onOpenPortal). L'utilisateur crée
+    // l'app dans la fenêtre Discord. L'App ID est auto-extrait par setup_webview.rs
+    // qui émet l'event 'bot-app-id-extracted'. Le parent écoute cet event et
+    // appelle wsHook.send('hybrid_setup_bot', appId) automatiquement.
   };
 
   const handlePasteFromClipboard = async () => {
@@ -188,7 +210,7 @@ export function SetupWizard({
                 <h2 className="text-xl font-bold text-[#e8e6e3] mb-3">
                   Configurer les Slash Commands
                 </h2>
-                <p className="text-sm text-[#7a7671] mb-8 max-w-sm mx-auto leading-relaxed">
+                <p className="text-sm text-[#7a7671] mb-6 max-w-sm mx-auto leading-relaxed">
                   Les Slash Commands vous permettent de contrôler Eclipse directement depuis Discord avec
                   des commandes comme <span className="text-[#b9b5ae] font-mono">/help</span>,{' '}
                   <span className="text-[#b9b5ae] font-mono">/ghostping</span> ou{' '}
@@ -198,10 +220,13 @@ export function SetupWizard({
                 <div className="flex flex-col gap-3">
                   <GlowButton
                     className="w-full"
-                    onClick={() => setStep('instructions')}
-                    icon={<ArrowRight className="w-4 h-4" />}
+                    onClick={() => {
+                      handleStartHybrid();
+                      handleOpenPortal();
+                    }}
+                    icon={<Globe className="w-4 h-4" />}
                   >
-                    Configurer manuellement
+                    Setup hybride (recommandé)
                   </GlowButton>
                   <GlowButton
                     variant="secondary"
@@ -214,11 +239,17 @@ export function SetupWizard({
                   <GlowButton
                     variant="ghost"
                     className="w-full"
-                    onClick={onClose}
+                    onClick={() => setStep('instructions')}
+                    icon={<ArrowRight className="w-4 h-4" />}
                   >
-                    Plus tard
+                    Configurer manuellement
                   </GlowButton>
                 </div>
+
+                <p className="text-[10px] text-[#5c5c66] mt-6">
+                  <ShieldAlert className="w-3 h-3 inline mr-1" />
+                  Discord a ajouté un captcha sur la création d'apps. L'hybride contourne ce blocage.
+                </p>
               </div>
             )}
 
@@ -487,6 +518,146 @@ export function SetupWizard({
                     </p>
                   </motion.div>
                 )}
+              </div>
+            )}
+
+            {/* Step: Hybrid Setup */}
+            {step === 'hybrid' && (
+              <div>
+                <h2 className="text-lg font-semibold text-[#e8e6e3] mb-1">
+                  Setup hybride
+                </h2>
+                <p className="text-sm text-[#7a7671] mb-6">
+                  Une fenêtre Discord s&apos;est ouverte. Créez l&apos;application, puis revenez ici.
+                </p>
+
+                <div className="space-y-3 mb-6">
+                  {[
+                    {
+                      icon: ExternalLink,
+                      color: '#e69a00',
+                      label: 'Créez une application nommée "Eclipse"',
+                      sub: 'Dans la fenêtre qui s\'est ouverte'
+                    },
+                    {
+                      icon: Bot,
+                      color: '#8b9dc3',
+                      label: 'L\'App ID est détecté automatiquement',
+                      sub: 'Eclipse va ajouter le Bot et récupérer le token'
+                    },
+                    {
+                      icon: Key,
+                      color: '#2d9e8a',
+                      label: 'Le token sera enregistré automatiquement',
+                      sub: 'Vous n\'avez rien à copier'
+                    },
+                  ].map(({ icon: Icon, color, label, sub }, i) => (
+                    <div
+                      key={i}
+                      className="flex gap-4 p-3.5 rounded-lg bg-[#0c0c0f] border border-white/[0.04]"
+                    >
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${color}10` }}
+                      >
+                        <Icon className="w-5 h-5" style={{ color }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-[#e8e6e3]">{label}</p>
+                        <p className="text-xs text-[#7a7671] mt-0.5">{sub}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {setupProgress && setupProgress.step !== 'error' && setupProgress.step !== 'captcha_required' && (
+                  <div className="space-y-2 mb-6">
+                    {HYBRID_STEPS.map(({ key, label }) => {
+                      const currentIdx = HYBRID_STEPS.findIndex(s => s.key === setupProgress.step);
+                      const stepIdx = HYBRID_STEPS.findIndex(s => s.key === key);
+                      const isDone = currentIdx > stepIdx || setupProgress.step === 'complete';
+                      const isCurrent = currentIdx === stepIdx;
+                      return (
+                        <div
+                          key={key}
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all duration-300 ${
+                            isDone
+                              ? 'bg-[#0c0c0f] border-[#2d9e8a]/20'
+                              : isCurrent
+                              ? 'bg-[#0c0c0f] border-[#e69a00]/30'
+                              : 'bg-[#0c0c0f] border-white/[0.04] opacity-40'
+                          }`}
+                        >
+                          <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0">
+                            {isDone ? (
+                              <CheckCircle className="w-4 h-4 text-[#2d9e8a]" />
+                            ) : isCurrent ? (
+                              <Loader className="w-4 h-4 text-[#e69a00] animate-spin" />
+                            ) : (
+                              <div className="w-1.5 h-1.5 rounded-full bg-[#5c5c66]" />
+                            )}
+                          </div>
+                          <p className={`text-xs ${isDone ? 'text-[#2d9e8a]' : isCurrent ? 'text-[#e8e6e3]' : 'text-[#5c5c66]'}`}>
+                            {label}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {setupProgress?.step === 'authorizing' && setupProgress?.authorizeUrl && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mb-4 p-3 rounded-lg bg-[#0c0c0f] border border-[#e69a00]/20"
+                  >
+                    <GlowButton
+                      variant="primary"
+                      className="w-full"
+                      onClick={() => window.open(setupProgress.authorizeUrl!, '_blank')}
+                      icon={<ExternalLink className="w-4 h-4" />}
+                    >
+                      Autoriser l&apos;application
+                    </GlowButton>
+                  </motion.div>
+                )}
+
+                {(setupProgress?.step === 'error' || setupProgress?.step === 'captcha_required') && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-lg bg-[#3d1a1e] border border-[#d4656b]/20 text-center"
+                  >
+                    <ShieldAlert className="w-5 h-5 text-[#d4656b] mx-auto mb-2" />
+                    <p className="text-sm text-[#d4656b] mb-1">
+                      {setupProgress?.step === 'captcha_required'
+                        ? 'Discord bloque aussi cette étape.'
+                        : 'Une erreur est survenue.'}
+                    </p>
+                    <p className="text-xs text-[#7a7671] mb-3">
+                      {setupProgress?.message || 'Utilisez la méthode manuelle.'}
+                    </p>
+                    <GlowButton
+                      variant="danger"
+                      size="sm"
+                      onClick={() => setStep('instructions')}
+                    >
+                      Méthode manuelle
+                    </GlowButton>
+                  </motion.div>
+                )}
+
+                <div className="flex gap-3 mt-4">
+                  <GlowButton
+                    variant="secondary"
+                    onClick={() => setStep('welcome')}
+                    icon={<ArrowLeft className="w-4 h-4" />}
+                    size="sm"
+                  >
+                    Retour
+                  </GlowButton>
+                </div>
               </div>
             )}
 
