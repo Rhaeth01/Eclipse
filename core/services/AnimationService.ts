@@ -88,10 +88,6 @@ export class AnimationService {
     }
   }
 
-  isCustomStatusAnimating(): boolean {
-    return this.customStatusAnimation !== null;
-  }
-
   // ============================================================================
   // RICH PRESENCE ANIMATION
   // ============================================================================
@@ -141,10 +137,6 @@ export class AnimationService {
 
       logger.info('Animation', 'RPC Rotator arrêté');
     }
-  }
-
-  isRpcAnimating(): boolean {
-    return this.rpcAnimation !== null;
   }
 
   // ============================================================================

@@ -213,26 +213,6 @@ export class AutoSlashService extends EventEmitter {
   }
 
   /**
-   * Force un bump immédiat
-   */
-  async forceBump(guildId: string): Promise<boolean> {
-    const config = this.bumpConfigs.get(guildId);
-    if (!config || !this.slashExecutor) return false;
-
-    try {
-      await this.slashExecutor.executeSlash(
-        guildId,
-        config.channelId,
-        'bump'
-      );
-      return true;
-    } catch (err) {
-      logger.error('AutoSlash', `Erreur force bump ${guildId}`, err);
-      return false;
-    }
-  }
-
-  /**
    * Récupère le statut du bump pour un serveur
    */
   getBumpStatus(guildId: string): BumpConfig | null {

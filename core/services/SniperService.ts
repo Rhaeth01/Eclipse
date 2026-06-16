@@ -259,21 +259,4 @@ export class SniperService extends EventEmitter {
       });
     }
   }
-
-  // ============================================================================
-  // CLEANUP
-  // ============================================================================
-
-  cleanupOldGiveaways(): void {
-    const oneHourAgo = Date.now() - (60 * 60 * 1000);
-    for (const [id, giveaway] of this.activeGiveaways) {
-      // Supprime les giveaways vieux de plus d'1 heure
-      // Note: On n'a pas la date de création, donc on utilise une méthode alternative
-      // ou on pourrait ajouter un timestamp dans GiveawayInfo
-    }
-  }
-
-  getActiveGiveaways(): GiveawayInfo[] {
-    return Array.from(this.activeGiveaways.values());
-  }
 }

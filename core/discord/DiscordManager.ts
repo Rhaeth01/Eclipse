@@ -2181,20 +2181,4 @@ export class DiscordManager extends EventEmitter {
   getRest(): DiscordREST | null {
     return this.selfbot?.getRest() || null;
   }
-
-  getSnipeCache(): Map<string, { content: string; author: string; timestamp: number }> {
-    return this.snipeCache;
-  }
-
-  getEditsnipeCache(): Map<string, { oldContent: string; author: string; timestamp: number }> {
-    return this.editsnipeCache;
-  }
-
-  setAfkMessage(message: string | null): void {
-    this.globalAfkMessage = message;
-  }
-
-  getAfkMessage(): string | null {
-    return this.globalAfkMessage;
-  }
 }

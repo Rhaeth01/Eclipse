@@ -59,20 +59,6 @@ export class StateService {
   }
 
   /**
-   * Initialise la table de state dans la DB
-   */
-  initTable(): void {
-    (this.db as any).db?.exec(`
-      CREATE TABLE IF NOT EXISTS app_state (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
-        updated_at INTEGER DEFAULT (unixepoch())
-      );
-    `);
-    logger.info('StateService', 'Table app_state initialisée');
-  }
-
-  /**
    * Sauvegarde l'état complet de l'application
    * Appelé automatiquement avec debounce quand un état change
    */
@@ -189,40 +175,6 @@ export class StateService {
       logger.info('StateService', 'État effacé');
     } catch (err) {
       logger.error('StateService', 'Erreur effacement état', err);
-    }
-  }
-
-  /**
-   * Exporte l'état complet vers un fichier JSON
-   */
-  exportToJson(): string {
-    const row = (this.db as any).db?.prepare(
-      'SELECT value FROM app_state WHERE key = ?'
-    ).get(STATE_KEY);
-
-    return row?.value || '{}';
-  }
-
-  /**
-   * Importe un état depuis un JSON
-   */
-  importFromJson(json: string): boolean {
-    try {
-      const state: AppState = JSON.parse(json);
-      
-      if (state.version !== STATE_VERSION) {
-        throw new Error(`Version incompatible: ${state.version}`);
-      }
-
-      (this.db as any).db?.prepare(
-        'INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES (?, ?, unixepoch())'
-      ).run(STATE_KEY, json);
-
-      logger.info('StateService', 'État importé avec succès');
-      return true;
-    } catch (err) {
-      logger.error('StateService', 'Erreur import état', err);
-      return false;
     }
   }
 

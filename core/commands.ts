@@ -1226,8 +1226,4 @@ ${member ? `📥 Rejoint: <t:${Math.floor((member.joinedTimestamp || 0) / 1000)}
             }
         }
     }
-
-    public getCommandsList(): Command[] {
-        return Array.from(this.commands.values());
-    }
 }
