@@ -44,6 +44,9 @@ export class EclipseCore {
   private commandStealth = true;
   private silentTyping = false;
   private isRunning = false;
+  // v0.4.1: référence du logger.onLog listener pour pouvoir le retirer
+  // dans stop() et éviter les duplicates si start() est rappelé.
+  private logListener?: (entry: any) => void;
 
   constructor(config: EclipseCoreConfig) {
     // Services
@@ -124,9 +127,10 @@ export class EclipseCore {
 
     logger.info('EclipseCore', '=== Démarrage d\'Eclipse Core ===');
 
-    // Setup log forwarding to WebSocket clients
-    logger.onLog((entry) => {
-      // N'envoie que les erreurs critiques au frontend pour éviter le spam
+    // v0.4.1 (audit fix): stocke la référence du listener pour pouvoir le
+    // retirer dans stop(). Avant: start()+stop()+start() créait des duplicates
+    // (le broadcast était appelé 2x, 3x, ...).
+    this.logListener = (entry) => {
       if (entry.level === 'error') {
         this.wsService.broadcast({
           type: 'core_log',
@@ -136,7 +140,8 @@ export class EclipseCore {
           logTimestamp: entry.timestamp.toISOString()
         } as any);
       }
-    });
+    };
+    logger.onLog(this.logListener);
 
     try {
       // Connecter la DB (peut échouer si better-sqlite3 corrompu/permissions)
@@ -173,6 +178,13 @@ export class EclipseCore {
     // Arrêter les services
     this.wsService.stop();
     this.dbService.close();
+
+    // v0.4.1 (audit fix): retirer le log listener pour éviter les duplicates
+    // si start() est rappelé après stop().
+    if (this.logListener) {
+      logger.offLog(this.logListener);
+      this.logListener = undefined;
+    }
 
     this.isRunning = false;
     logger.info('EclipseCore', '=== Eclipse Core arrêté ===');

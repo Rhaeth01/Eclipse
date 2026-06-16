@@ -143,7 +143,12 @@ export interface IGuild {
   memberCount: number;
   members: {
     cache: Map<string, IGuildMember>;
-    fetch(userId: string): Promise<IGuildMember>;
+    // v0.4.1: signature union pour matcher le vrai discord.js :
+    // - fetch() sans args → Map de tous les membres
+    // - fetch(userId) → IGuildMember unique
+    // On type comme `any` ici car l'union discriminated est trop complexe
+    // pour notre interface custom; le code appelant doit caster.
+    fetch(userId?: string): any;
     ban(userId: string, options?: { reason?: string }): Promise<void>;
     unban(userId: string, reason?: string): Promise<void>;
   };

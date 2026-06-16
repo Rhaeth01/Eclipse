@@ -17,6 +17,11 @@ export interface BumpConfig {
 
 export class AutoSlashService extends EventEmitter {
   private bumpConfigs = new Map<string, BumpConfig>(); // guildId -> config
+  // v0.4.1 (audit fix): deux maps séparées pour le setTimeout initial
+  // et le setInterval qui le suit. Avant: la même map contenait successivement
+  // un Timeout puis un Interval, ce qui causait des leaks si disableBump
+  // était appelé entre les deux phases.
+  private initialTimeouts = new Map<string, NodeJS.Timeout>();
   private intervals = new Map<string, NodeJS.Timeout>();
 
   // Callback pour exécuter les commandes slash
@@ -84,6 +89,12 @@ export class AutoSlashService extends EventEmitter {
    * Désactive le bump automatique
    */
   disableBump(guildId: string): boolean {
+    // v0.4.1: nettoyer les DEUX maps (initial timeout + interval)
+    const initial = this.initialTimeouts.get(guildId);
+    if (initial) {
+      clearTimeout(initial);
+      this.initialTimeouts.delete(guildId);
+    }
     const interval = this.intervals.get(guildId);
     if (interval) {
       clearInterval(interval);
@@ -112,6 +123,7 @@ export class AutoSlashService extends EventEmitter {
     const initialDelay = Math.max(0, (config.nextBump || Date.now()) - Date.now());
 
     const initialTimeout = setTimeout(() => {
+      this.initialTimeouts.delete(guildId);
       this.executeBump(guildId);
 
       // Interval régulier qui s'amorce après le bump initial
@@ -119,12 +131,12 @@ export class AutoSlashService extends EventEmitter {
         this.executeBump(guildId);
       }, config.interval);
 
-      // Met à jour la référence vers l'interval afin de pouvoir annuler le loop
+      // Met à jour la référence vers l'interval (map séparée du setTimeout)
       this.intervals.set(guildId, interval);
     }, initialDelay);
 
-    // On stock temporairement le timeout dans la Map pour pouvoir l'annuler si cancel tôt
-    this.intervals.set(guildId, initialTimeout as any);
+    // Stocke dans la map des timeouts (distincte de celle des intervals)
+    this.initialTimeouts.set(guildId, initialTimeout);
   }
 
   /**

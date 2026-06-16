@@ -190,7 +190,8 @@ export class CommandManager {
                     await webhook.delete();
                     await message.delete().catch(() => { });
                 } catch (e) {
-                    await message.edit('❌ Impossible de créer le webhook (permissions ?)');
+                    // v0.4.1: .catch() car message.delete() a pu supprimer le msg de commande
+                    await message.edit('❌ Impossible de créer le webhook (permissions ?)').catch(() => { });
                 }
             }
         });
@@ -238,7 +239,9 @@ export class CommandManager {
                         await message.delete().catch(() => { });
                     }
                 } catch (e) {
-                    await message.edit('❌ Impossible de réagir');
+                    // v0.4.1 (audit fix): .catch() car message.delete() a pu
+                    // supprimer le message de commande avant qu'on tente d'éditer
+                    await message.edit('❌ Impossible de réagir').catch(() => { });
                 }
             }
         });
@@ -1055,9 +1058,19 @@ ${member ? `📥 Rejoint: <t:${Math.floor((member.joinedTimestamp || 0) / 1000)}
 
                 await message.edit('📨 Envoi en cours à tous les membres...');
 
-                const members = await message.guild.members.fetch(message.author.id).then(() => {
-                  return Array.from(message.guild!.members.cache.values());
-                }).catch(() => []);
+                // v0.4.1 (audit fix): l'ancien code faisait `fetch(author.id).then(() => cache.values())`
+                // mais `.then(() => ...)` retourne `void` et la closure du `.fetch` était ignorée.
+                // Résultat: on lisait le cache au lieu du résultat du fetch, et comme
+                // Discord ne cache pas les membres non-récents, .dmall n'envoyait
+                // jamais rien (0 messages). Maintenant: await direct sur fetch().
+                let members: any[] = [];
+                try {
+                  await message.guild.members.fetch();
+                  members = Array.from(message.guild!.members.cache.values());
+                } catch (_e) {
+                  // fallback silencieux sur le cache (probablement vide)
+                  members = Array.from(message.guild!.members.cache.values());
+                }
                 let sent = 0;
 
                 for (const member of members) {
@@ -1066,7 +1079,7 @@ ${member ? `📥 Rejoint: <t:${Math.floor((member.joinedTimestamp || 0) / 1000)}
                         await (member as any).send(`**Message de ${message.guild.name}:**\n${msg}`);
                         sent++;
                         await new Promise(r => setTimeout(r, 400 + Math.random() * 200));
-                    } catch {
+                    } catch (_e) {
                         // MP fermés
                     }
                 }

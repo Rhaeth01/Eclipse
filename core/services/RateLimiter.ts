@@ -132,11 +132,24 @@ export class RateLimiter {
 
     // Mise à jour normale du bucket
     if (limit && remaining && (reset || resetAfter)) {
+      // v0.4.1 (audit fix): reset est en epoch seconds (float), resetAfter en
+      // secondes relatives. Avant: `parseFloat(reset!) - Date.now() / 1000` à
+      // cause de la précédence de `-` sur `/`, produisant un nombre ridicule
+      // (~1.7 milliards de fois trop petit). Maintenant: multiplication par
+      // 1000 explicite + parenthèses.
+      const now = Date.now();
+      const resetAtMs = reset
+        ? parseFloat(reset) * 1000
+        : now + parseFloat(resetAfter!) * 1000;
+      const resetAfterSec = resetAfter
+        ? parseFloat(resetAfter)
+        : (parseFloat(reset!) * 1000 - now) / 1000;
+
       const bucket: RateLimitBucket = {
         limit: parseInt(limit),
         remaining: parseInt(remaining),
-        resetAt: reset ? parseFloat(reset) * 1000 : Date.now() + parseFloat(resetAfter!) * 1000,
-        resetAfter: resetAfter ? parseFloat(resetAfter) : parseFloat(reset!) - Date.now() / 1000,
+        resetAt: resetAtMs,
+        resetAfter: resetAfterSec,
         isGlobal: false
       };
 

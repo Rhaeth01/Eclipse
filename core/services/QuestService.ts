@@ -466,7 +466,10 @@ export class QuestService {
   }
 
   /**
-   * Arrête un processus factice
+   * Arrête un processus factice et nettoie les fichiers temporaires.
+   * v0.4.1 (audit fix): avant, les .bat et dummy.js étaient créés dans
+   * os.tmpdir() mais jamais supprimés → disk leak. Maintenant on supprime
+   * le dossier complet à l'arrêt.
    */
   private stopDummyProcess(processInfo: any): void {
     try {
@@ -476,6 +479,26 @@ export class QuestService {
       }
     } catch (err) {
       logger.warn('QuestService', 'Erreur arrêt processus', err);
+    }
+
+    // Cleanup des fichiers temporaires (.bat, dummy.js, etc.)
+    if (processInfo.path) {
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        const dir = path.dirname(processInfo.path);
+        // Petit délai pour s'assurer que le process Node a libéré les fichiers
+        setTimeout(() => {
+          try {
+            fs.rmSync(dir, { recursive: true, force: true });
+            logger.info('QuestService', `Dossier temporaire ${dir} supprimé`);
+          } catch (err) {
+            logger.warn('QuestService', `Impossible de supprimer ${dir}`, err);
+          }
+        }, 500);
+      } catch (err) {
+        logger.warn('QuestService', 'Erreur cleanup tmp', err);
+      }
     }
   }
 

@@ -929,10 +929,12 @@ export class DiscordManager extends EventEmitter {
           await interaction.reply({ content: '⌨️ Indicateur d\'écriture activé pendant 60s...', ephemeral: true });
           const channel = interaction.channel;
           if (channel?.isTextBased()) {
-            const interval = setInterval(() => {
+            // v0.4.1 (audit fix): tracking explicite de l'interval pour éviter
+            // les leaks quand l'utilisateur relance /typing plusieurs fois.
+            const intervalId = setInterval(() => {
               (channel as any).sendTyping().catch(() => { });
             }, 8000);
-            setTimeout(() => clearInterval(interval), 60000);
+            setTimeout(() => clearInterval(intervalId), 60000);
           }
           break;
         }
