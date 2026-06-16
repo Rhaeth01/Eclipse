@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/rust-1.96-DEA584?logo=rust" />
   <img src="https://img.shields.io/badge/node-22.19-339933?logo=nodedotjs" />
   <img src="https://img.shields.io/badge/license-Apache_2.0-blue" />
-  <img src="https://img.shields.io/badge/tests-51%20passed-2d9e8a?logo=vitest" />
+  <img src="https://img.shields.io/badge/tests-69%20passed-2d9e8a?logo=vitest" />
 </p>
 
 ---
@@ -53,7 +53,7 @@ Les outils de ce genre existent depuis des années, mais ils sont presque tous f
 
 ### Pour les utilisateurs
 
-1. Télécharge la dernière release : [Eclipse_0.3.0_x64-setup.exe](https://github.com/Rhaeth01/Eclipse/releases/latest)
+1. Télécharge la dernière release : [Eclipse_0.4.3_x64-setup.exe](https://github.com/Rhaeth01/Eclipse/releases/latest)
 2. Installe — **Node.js est inclus dans l'installeur, aucun prérequis**
 3. Lance Eclipse
 4. Le token de ton compte Discord est extrait automatiquement (Windows) — ou saisis-le manuellement (Linux/Mac)
@@ -82,8 +82,13 @@ npm run dev:all       # Frontend + Core + Tauri (Windows recommandé)
 - Custom status animé (texte + emoji)
 - Live preview fidèle au rendu Discord
 
-### 🤖 57+ commandes slash et contextuelles
+### 🤖 63+ commandes slash et contextuelles
 Voir la [liste complète](#commandes).
+
+### 🎯 Quest auto-completion
+- Détection automatique des quêtes Discord en cours
+- Complétion automatique (vidéo, stream, jeu) sans interaction
+- Panel dédié pour suivre la progression et les récompenses
 
 ### 🔔 Notifications & surveillance
 - Centre de notifications in-app
@@ -119,7 +124,8 @@ Voir la [liste complète](#commandes).
 | **Fun** | `/roll`, `/coinflip`, `/8ball`, `/choose`, `/love`, `/roast`, `/compliment`, `/joke`, `/rate`, `/ship` |
 | **Image** | `/cat`, `/dog`, `/meme` |
 | **Texte** | `/mock`, `/ascii`, `/vaporwave`, `/emojify`, `/clap`, `/nighty`, `/reverse`, `/uwu` |
-| **Utilitaires** | `/translate`, `/weather`, `/qr`, `/calc`, `/poll`, `/password`, `/color` |
+| **Utilitaires** | `/translate`, `/weather`, `/qr`, `/calc`, `/poll`, `/password`, `/color`, `/help`, `/ping` |
+| **Infos** | `/avatar`, `/userinfo`, `/serverinfo` |
 | **Modération** | `/kick`, `/ban`, `/hackban`, `/unban`, `/slowmode`, `/lock`, `/unlock`, `/nuke`, `/role`, `/purge`, `/clear` |
 | **Espionnage** | `/ghostping`, `/spy`, `/snipe`, `/editsnipe`, `/deletesend`, `/typing` |
 | **Vocal** | `/joinvc`, `/leavevc`, `/tts` |
@@ -142,16 +148,16 @@ Voir la [liste complète](#commandes).
 │  EclipseCore      │────► WebSocketService
 └────────┬─────────┘
          │
-   ┌─────┴──────┬───────────┬───────────┬───────────┬───────────┐
-   ▼            ▼           ▼           ▼           ▼           ▼
-Discord      Animation   Database    TrollSvc    SniperSvc  BotSetup
-Manager      Service     Service                              Service
+   ┌─────┴────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+   ▼          ▼          ▼          ▼          ▼          ▼          ▼          ▼          ▼
+Discord    Animation  Database   TrollSvc   SniperSvc  BotSetup   Quest      Spy       AutoSlash
+Manager    Service    Service                          Service    Service    Service   + Backup
    │
    ├── DiscordUserClient (custom Gateway + REST)
    │   ├── DiscordGateway (WebSocket gateway)
    │   └── DiscordREST (HTTP + app creation API)
    │
-   └── discord.js v14 (App Bot — 57+ slash commands)
+   └── discord.js v14 (App Bot — 63+ slash commands)
 ```
 
 **Stack technique :**
@@ -160,7 +166,7 @@ Manager      Service     Service                              Service
 |--------|------|
 | Frontend | Next.js 16 · React 19 · Tailwind CSS 4 · Framer Motion |
 | Desktop | Tauri 2.10 (Rust) — tray, frameless, auto-updater, WebView |
-| Backend | Node.js 22 (bundlé) · custom Gateway + REST (~1400 lignes) |
+| Backend | Node.js 22 (bundlé) · custom Gateway + REST (~1600 lignes) |
 | Validation | Zod schemas |
 | Database | SQLite via `better-sqlite3` |
 | Tests | Vitest + React Testing Library |
@@ -182,8 +188,8 @@ npm run dev:all
 npm run dev:linux
 
 # Tests
-npm test              # frontend (38 tests)
-cd core && npm test    # backend (13 tests)
+npm test              # frontend + core (69 tests)
+cd core && npm test    # backend uniquement (41 tests)
 
 # Lint
 npm run lint
@@ -208,14 +214,14 @@ Le dev Tauri complet nécessite Windows (DPAPI token extraction). Sous Linux :
 
 ## Tests
 
-**51 tests** au total, lancés via Vitest :
+**69 tests** au total, lancés via Vitest :
 
 ```
 npm test
 ```
 
-- **Frontend** (38 tests) : composants, hooks, schemas Zod
-- **Backend** (13 tests) : validation des messages WebSocket
+- **Frontend** (28 tests) : composants (SetupWizard), hooks (useWebSocket)
+- **Backend** (41 tests) : schemas Zod, EclipseCore, WebSocketService, BotSetupService, AutoSlashService, RateLimiter
 
 Le build passe : `npm run build` + `npx tsc` (core) + `cargo check` (Rust).
 
