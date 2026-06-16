@@ -220,7 +220,9 @@ export class EclipseCore {
       logger.info('EclipseCore', `Discord prêt: ${tag}`);
 
       // Mettre à jour le context du message handler
-      (this.messageHandler as any).context.discordClient = this.discordManager.getSelfbot();
+      // v0.4.3: utilise la méthode publique setDiscordClient() au lieu
+      // d'un cast `as any` qui cassait silencieusement au rename.
+      this.messageHandler.setDiscordClient(this.discordManager.getSelfbot());
 
       // Setup Sniper Service handlers
       this.setupSniperHandlers();
@@ -241,16 +243,15 @@ export class EclipseCore {
 
       logger.info('EclipseCore', `État restauré - Stealth: ${this.commandStealth}, SilentTyping: ${this.silentTyping}`);
 
-      // Notifier le frontend du mode stealth restauré
-      const firstClient = this.wsService.getFirstClientId();
-      if (firstClient) {
-        this.wsService.sendToClient(firstClient, {
-          type: 'status',
-          message: 'state_restored',
-          stealthMode: this.commandStealth,
-          silentTyping: this.silentTyping
-        } as any);
-      }
+      // v0.4.3: broadcast à TOUS les clients authentifiés (avant: seulement
+      // au premier client connecté — les autres tabs/windows rataient la
+      // notification de restauration).
+      this.wsService.broadcast({
+        type: 'status',
+        message: 'state_restored',
+        stealthMode: this.commandStealth,
+        silentTyping: this.silentTyping
+      } as any);
     } catch (err) {
       logger.error('EclipseCore', 'Erreur restauration etat (mode degrade, defaut applique)', err);
       // Valeurs par défaut déjà en place (stealth=true, silentTyping=false)

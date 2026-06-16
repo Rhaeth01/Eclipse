@@ -71,7 +71,12 @@ export class Logger {
     this.listeners.forEach(cb => {
       try {
         cb(entry);
-      } catch {}
+      } catch (err) {
+        // v0.4.3: ne plus swallow silencieusement les erreurs des listeners.
+        // Un bug dans un listener (ex: WS déconnecté) ne doit pas casser
+        // le pipeline de log silencieux, mais doit être visible côté console.
+        console.error('[Logger] Listener threw:', err);
+      }
     });
 
     const color = this.colors[level];

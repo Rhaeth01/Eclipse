@@ -76,14 +76,16 @@ export class QuestService {
         throw new Error('Aucune réponse de l\'API quests');
       }
 
-      logger.info('QuestService', `Raw response type: ${typeof response}`);
-      logger.info('QuestService', `Is Array: ${Array.isArray(response)}`);
-      
+      // v0.4.3: logs de debug (raw response peut faire plusieurs KB et spam
+      // la console). Avant: log.info() à chaque getQuests().
+      logger.debug('QuestService', `Raw response type: ${typeof response}`);
+      logger.debug('QuestService', `Is Array: ${Array.isArray(response)}`);
+
       const responseStr = JSON.stringify(response);
-      logger.info('QuestService', `Response length: ${responseStr.length}`);
-      
+      logger.debug('QuestService', `Response length: ${responseStr.length}`);
+
       if (responseStr.length > 0) {
-        logger.info('QuestService', `Raw response: ${responseStr.substring(0, 2000)}`);
+        logger.debug('QuestService', `Raw response: ${responseStr.substring(0, 2000)}`);
       }
 
       // Parse la réponse
@@ -94,7 +96,7 @@ export class QuestService {
         questsArray = response.quests || response.data || response.user_quests || [];
       }
 
-      logger.info('QuestService', `Found ${questsArray.length} raw quests`);
+      logger.debug('QuestService', `Found ${questsArray.length} raw quests`);
 
       const quests: DiscordQuest[] = questsArray
         .map((q: any) => this.parseQuest(q))
@@ -432,10 +434,9 @@ export class QuestService {
       
       // Copie un template exe ou crée un simple processus Node
       // Pour l'instant, on utilise un simple processus Node renommé
-      const dummyScript = `
-        console.log('Dummy process for ${gameName}');
-        setInterval(() => {}, 1000);
-      `;
+      // v0.4.3: backticks pour interpoler ${gameName} (avant: le string
+      // contenait littéralement '${gameName}' au lieu du nom du jeu).
+      const dummyScript = `console.log('Dummy process for ${gameName}'); setInterval(() => {}, 1000);`;
       
       const scriptPath = path.join(tempDir, 'dummy.js');
       fs.writeFileSync(scriptPath, dummyScript);

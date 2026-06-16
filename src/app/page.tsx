@@ -1037,9 +1037,13 @@ export default function Home() {
                       <GlowButton variant="danger" className="w-full" onClick={() => { clearLogs(); toast.success('Logs effacés'); }}>
                         Effacer tous les logs
                       </GlowButton>
-                      <GlowButton variant="danger" className="w-full" onClick={async () => {
-                        try { await invoke('clear_bot_token'); } catch {}
-                        window.location.reload();
+                      <GlowButton variant="danger" className="w-full" onClick={() => {
+                        // v0.4.3: confirmation avant d'effacer le token et
+                        // recharger l'app (action irréversible).
+                        if (confirm('Réinitialiser l\'état ?\n\nLe token Bot sera supprimé et l\'application rechargée.')) {
+                          invoke('clear_bot_token').catch(() => {});
+                          window.location.reload();
+                        }
                       }}>
                         Réinitialiser l&apos;état
                       </GlowButton>

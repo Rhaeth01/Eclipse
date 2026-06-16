@@ -88,28 +88,28 @@ export class TrollService extends EventEmitter {
   // DELETESEND
   // ============================================================================
 
-  addDeletesend(userId: string): void {
+  addDeleteSend(userId: string): void {
     this.deletesendTargets.add(userId);
-    logger.info('Troll', `Deletesend activé: ${userId}`);
+    logger.info('Troll', `DeleteSend activé: ${userId}`);
   }
 
-  removeDeletesend(userId: string): boolean {
+  removeDeleteSend(userId: string): boolean {
     const result = this.deletesendTargets.delete(userId);
-    if (result) logger.info('Troll', `Deletesend désactivé: ${userId}`);
+    if (result) logger.info('Troll', `DeleteSend désactivé: ${userId}`);
     return result;
   }
 
-  toggleDeletesend(userId: string): boolean {
+  toggleDeleteSend(userId: string): boolean {
     if (this.deletesendTargets.has(userId)) {
-      this.removeDeletesend(userId);
+      this.removeDeleteSend(userId);
       return false;
     } else {
-      this.addDeletesend(userId);
+      this.addDeleteSend(userId);
       return true;
     }
   }
 
-  isDeletesendActive(userId: string): boolean {
+  isDeleteSendActive(userId: string): boolean {
     return this.deletesendTargets.has(userId);
   }
 

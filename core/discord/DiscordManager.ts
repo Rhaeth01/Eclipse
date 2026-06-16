@@ -703,7 +703,9 @@ export class DiscordManager extends EventEmitter {
       if (!interaction.replied && !interaction.deferred) {
         await interaction.reply({ content: '⌛', ephemeral: true });
       }
-    } catch (e) { }
+    } catch (e) {
+      logger.warn('DiscordManager', 'stealthReply: ack initial échoué', e);
+    }
 
     try {
       // 2. On récupère le vrai salon via l'instance de votre VRAI COMPTE (selfbot)
@@ -727,20 +729,21 @@ export class DiscordManager extends EventEmitter {
         }
       }
     } catch (err: any) {
-      console.error("Erreur d'envoi stealth via le selfbot:", err);
-      try {
-        require('fs').appendFileSync('stealth_error.txt', err.stack + '\n\n');
-      } catch (e) { }
+      // v0.4.3: on log via le Logger centralisé au lieu d'écrire dans un
+      // fichier stealth_error.txt à côté de l'exe (disk leak + stack trace
+      // non chiffrée sur le disque).
+      logger.error('DiscordManager', "stealthReply: envoi stealth via selfbot échoué", err);
     }
 
-    // Fallback ultime (si votre compte n'a pas pu envoyer le msg) : le bot répond, 
+    // Fallback ultime (si votre compte n'a pas pu envoyer le msg) : le bot répond,
     // l'utilisateur de l'app verra 'used app' mais aura au moins l'info au lieu d'un crashe silencieux.
     try {
       const msg = await interaction.editReply({ content, ...options }).catch(() => { });
       return msg;
-    } catch (e) { }
-
-    return null;
+    } catch (e) {
+      logger.warn('DiscordManager', 'stealthReply: fallback editReply échoué', e);
+      return null;
+    }
   }
 
   private async handleInteraction(interaction: Interaction): Promise<void> {
@@ -1501,13 +1504,13 @@ export class DiscordManager extends EventEmitter {
             return;
           }
 
-          const isActive = this.trollService.isDeletesendActive(target.id);
+          const isActive = this.trollService.isDeleteSendActive(target.id);
 
           if (isActive) {
-            this.trollService.removeDeletesend(target.id);
+            this.trollService.removeDeleteSend(target.id);
             await interaction.reply({ content: `✅ Deletesend désactivé pour ${target.tag}.`, ephemeral: true });
           } else {
-            this.trollService.addDeletesend(target.id);
+            this.trollService.addDeleteSend(target.id);
             await interaction.reply({ content: `🗑️ Deletesend activé pour ${target.tag}. Ses messages seront supprimés automatiquement.`, ephemeral: true });
           }
           break;
@@ -1871,10 +1874,10 @@ export class DiscordManager extends EventEmitter {
     }
 
     // Deletesend - ne pas supprimer ses propres messages
-    if (this.trollService.isDeletesendActive(msg.author.id) && msg.guild) {
+    if (this.trollService.isDeleteSendActive(msg.author.id) && msg.guild) {
       if (msg.author.id === this.selfbot?.user?.id) {
         // Auto-protection: retirer l'utilisateur de sa propre liste deletesend
-        this.trollService.removeDeletesend(msg.author.id);
+        this.trollService.removeDeleteSend(msg.author.id);
         logger.warn('DiscordManager', 'Auto-protection: removes deletesend sur soi-même');
       } else if (this.trollService['messageHandler']) {
         this.trollService['messageHandler'].deleteMessage(msg).catch(() => { });

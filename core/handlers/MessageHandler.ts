@@ -41,6 +41,16 @@ export class MessageHandler {
     this.context = context;
   }
 
+  /**
+   * v0.4.3: méthode publique pour mettre à jour le discordClient dans le context
+   * après que la connexion Discord soit établie. Avant on faisait
+   * `(this.messageHandler as any).context.discordClient = ...` dans
+   * EclipseCore — un cast `as any` qui cassait silencieusement au rename.
+   */
+  setDiscordClient(client: DiscordUserClient | null): void {
+    this.context = { ...this.context, discordClient: client };
+  }
+
   async handle(clientId: string, message: WsMessage): Promise<void> {
     const { type } = message;
 

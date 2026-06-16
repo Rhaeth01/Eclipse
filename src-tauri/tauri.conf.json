@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Eclipse",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "identifier": "app.eclipse.discord",
   "build": {
     "frontendDist": "../out",
@@ -25,7 +25,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws://localhost:4040 https://cdn.discordapp.com; img-src 'self' https://cdn.discordapp.com https: data:; font-src 'self' data:"
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' ws://localhost:4040 https://cdn.discordapp.com; img-src 'self' https://cdn.discordapp.com data:; font-src 'self' data:"
     }
   },
   "plugins": {
