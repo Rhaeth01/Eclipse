@@ -157,7 +157,8 @@ pub fn run() {
       setup_webview::setup_webview_loaded,
       setup_webview::bot_token_extracted,
       setup_webview::bot_app_id_extracted,
-      setup_webview::close_setup_webview
+      setup_webview::close_setup_webview,
+      setup_webview::open_external_url
     ])
     .run(tauri::generate_context!())
     .expect("error while running tauri application");

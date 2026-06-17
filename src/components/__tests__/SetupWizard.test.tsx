@@ -3,6 +3,12 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SetupWizard } from '../SetupWizard';
 
+vi.mock('@tauri-apps/api/core', () => ({
+  invoke: vi.fn().mockResolvedValue(undefined),
+}));
+
+import { invoke } from '@tauri-apps/api/core';
+
 const mockOnClose = vi.fn();
 const mockOnTokenSave = vi.fn().mockResolvedValue(undefined);
 const mockOnOpenPortal = vi.fn();
@@ -228,7 +234,7 @@ describe('SetupWizard', () => {
   });
 
   describe('Fallback open portal', () => {
-    it('uses window.open when onOpenPortal is not provided', async () => {
+    it('uses invoke open_external_url when onOpenPortal is not provided', async () => {
       render(
         <SetupWizard
           open={true}
@@ -240,7 +246,7 @@ describe('SetupWizard', () => {
       await userEvent.click(screen.getByText('Configurer manuellement'));
       const link = screen.getByText('discord.com/developers/applications');
       await userEvent.click(link);
-      expect(window.open).toHaveBeenCalledWith('https://discord.com/developers/applications', '_blank');
+      expect(vi.mocked(invoke)).toHaveBeenCalledWith('open_external_url', { url: 'https://discord.com/developers/applications' });
     });
   });
 

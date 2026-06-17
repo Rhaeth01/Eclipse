@@ -149,7 +149,8 @@ export function SetupWizard({
     if (onOpenPortal) {
       onOpenPortal();
     } else {
-      window.open('https://discord.com/developers/applications', '_blank');
+      invoke('open_external_url', { url: 'https://discord.com/developers/applications' })
+        .catch(() => {});
     }
   };
 
@@ -171,7 +172,7 @@ export function SetupWizard({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 20 }}
           transition={{ type: 'spring', bounce: 0.2, duration: 0.5 }}
-          className="relative w-full max-w-lg mx-4 bg-[#0a0a0d] border border-white/[0.06] rounded-2xl shadow-[0_0_60px_-12px_rgba(230,154,0,0.08)] overflow-hidden"
+          className="relative w-full max-w-lg mx-4 my-4 max-h-[90vh] flex flex-col bg-[#0a0a0d] border border-white/[0.06] rounded-2xl shadow-[0_0_60px_-12px_rgba(230,154,0,0.08)] overflow-hidden"
         >
           {/* Progress bar */}
           <div className="flex border-b border-white/[0.05]">
@@ -194,7 +195,7 @@ export function SetupWizard({
             })}
           </div>
 
-          <div className="p-8 min-h-[320px]">
+          <div className="p-8 min-h-[320px] overflow-y-auto flex-1">
             {/* Step 1: Welcome */}
             {step === 'welcome' && (
               <div className="text-center">
@@ -509,7 +510,7 @@ export function SetupWizard({
                     <GlowButton
                       variant="primary"
                       className="w-full mb-3"
-                      onClick={() => window.open(setupProgress!.authorizeUrl!, '_blank')}
+                      onClick={() => invoke('open_external_url', { url: setupProgress!.authorizeUrl! }).catch(() => {})}
                       icon={<ExternalLink className="w-4 h-4" />}
                     >
                       Autoriser l&apos;application

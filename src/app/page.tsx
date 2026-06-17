@@ -117,11 +117,14 @@ export default function Home() {
     return () => { unlisten.then(fn => fn()); };
   }, [wsHook]);
 
-  // Le setup hybride ouvre simplement le navigateur externe (le WebView2
-  // ne charge pas discord.com/developers de manière fiable). L'utilisateur
-  // copie-colle ensuite l'App ID et le token via les champs du wizard.
+  // Le setup hybride ouvre le navigateur externe via une commande Tauri
+  // (window.open est bloqué par défaut dans Tauri). L'utilisateur copie-colle
+  // ensuite l'App ID et le token via les champs du wizard.
   const handleOpenWebview = () => {
-    window.open('https://discord.com/developers/applications', '_blank');
+    invoke('open_external_url', { url: 'https://discord.com/developers/applications' })
+      .catch((err) => {
+        toast.error('Erreur', { description: `Impossible d'ouvrir le navigateur: ${err}` });
+      });
   };
 
   useEffect(() => {

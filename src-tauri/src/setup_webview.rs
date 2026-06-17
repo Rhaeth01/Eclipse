@@ -366,3 +366,35 @@ pub fn close_setup_webview(app: AppHandle) -> Result<(), String> {
     }
     Ok(())
 }
+
+/// Ouvre une URL dans le navigateur par défaut de l'OS.
+/// Tauri bloque window.open() par défaut, donc on doit passer par une commande
+/// Rust qui spawn le binaire système (cmd /C start, xdg-open, open).
+#[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), String> {
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err(format!("URL non autorisée: doit commencer par http(s):// (reçu: {})", url));
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(&["/C", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("Impossible d'ouvrir l'URL: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Impossible d'ouvrir l'URL: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("Impossible d'ouvrir l'URL: {}", e))?;
+    }
+    Ok(())
+}
