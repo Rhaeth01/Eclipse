@@ -161,8 +161,7 @@ export class AnimationService {
     // Arrêter l'animation RPC si elle est en cours
     this.stopRpcAnimation();
 
-    // Clear la présence
-    this.client.user.setActivity(undefined);
+    // Clear la présence en une seule commande
     this.client.user.setPresence({ activities: [], status: 'online' });
 
     logger.info('Animation', 'Rich Presence désactivée');

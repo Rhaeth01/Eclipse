@@ -41,6 +41,10 @@ export interface DiscordConfig {
   appToken?: string;
 }
 
+export interface DiscordManagerContext {
+  getCommandStealth: () => boolean;
+}
+
 export interface DiscordEvents {
   ready: { tag: string; id: string };
   friendAdd: { id: string; tag: string; type: number };
@@ -77,23 +81,35 @@ export class DiscordManager extends EventEmitter {
   private spyService: SpyService;
   private trollService: TrollService;
   private commandManager: CommandManager;
+  private context: DiscordManagerContext;
 
   // Caches
   private snipeCache = new Map<string, { content: string; author: string; timestamp: number }>();
   private editsnipeCache = new Map<string, { oldContent: string; author: string; timestamp: number }>();
   private globalAfkMessage: string | null = null;
 
+  // Commandes qui doivent toujours être envoyées par le selfbot (compte utilisateur)
+  // et être visibles par tout le monde, même en mode furtif.
+  private static readonly SELFBOT_PUBLIC_COMMANDS = new Set([
+    'fakevirus', 'fuckyou', 'hack', 'disconnect',
+    'mock', 'ascii', 'nighty', 'vaporwave', 'emojify', 'clap', 'reverse', 'uwu', 'tts',
+    'roll', 'coinflip', '8ball', 'choose', 'love', 'roast', 'compliment', 'joke', 'ship', 'rate',
+    'cat', 'dog', 'meme', 'color'
+  ]);
+
   constructor(
     wsService: WebSocketService,
     dbService: DatabaseService,
     spyService: SpyService,
-    trollService: TrollService
+    trollService: TrollService,
+    context: DiscordManagerContext = { getCommandStealth: () => true }
   ) {
     super();
     this.wsService = wsService;
     this.dbService = dbService;
     this.spyService = spyService;
     this.trollService = trollService;
+    this.context = context;
     this.commandManager = new CommandManager();
 
     // Configure le TrollService avec les handlers rate-limités
@@ -694,56 +710,74 @@ export class DiscordManager extends EventEmitter {
   }
 
   /**
+   * Envoie un message via le selfbot (compte utilisateur) pour qu'il apparaisse
+   * comme venant de l'utilisateur et non de l'App Bot. Utilise deferReply pour
+   * éviter l'ACK visible "⌛", puis supprime la réponse éphémère.
+   */
+  private async sendAsSelfbot(interaction: any, content: string, options: any = {}): Promise<any> {
+    if (!this.selfbot || !interaction.channelId) {
+      throw new Error('Selfbot non connecté ou canal inconnu');
+    }
+
+    if (!interaction.deferred && !interaction.replied) {
+      await interaction.deferReply({ ephemeral: true });
+    }
+
+    const channel = await this.selfbot.channels.fetch(interaction.channelId);
+    if (!channel || !channel.isText()) {
+      throw new Error('Canal textuel introuvable');
+    }
+
+    const sentMsg = await (channel as any).send({ content, ...options });
+    await interaction.deleteReply().catch(() => { });
+    return sentMsg;
+  }
+
+  /**
+   * Réponse éphémère sécurisée : ne plante pas si l'interaction a déjà été
+   * traitée. Utilisé pour les messages d'erreur privés.
+   */
+  private async safeEphemeralReply(interaction: any, content: string): Promise<void> {
+    try {
+      if (interaction.deferred) {
+        await interaction.editReply({ content });
+      } else if (!interaction.replied) {
+        await interaction.reply({ content, ephemeral: true });
+      }
+    } catch (e) {
+      logger.warn('DiscordManager', 'safeEphemeralReply échoué', e);
+    }
+  }
+
+  /**
    * Répond de manière stealth (invisible)
-   * Envoie le message dans le canal et supprime la trace de la commande
+   * Envoie le message dans le canal et supprime la trace de la commande.
+   * Garde un fallback sur l'App Bot pour les commandes qui ne sont pas
+   * explicitement marquées comme "toujours selfbot".
    */
   private async stealthReply(interaction: any, content: string, options: any = {}): Promise<any> {
-    // 1. On acquitte immédiatement l'interaction de façon éphémère et "silencieuse"
     try {
-      if (!interaction.replied && !interaction.deferred) {
-        await interaction.reply({ content: '⌛', ephemeral: true });
-      }
-    } catch (e) {
-      logger.warn('DiscordManager', 'stealthReply: ack initial échoué', e);
-    }
-
-    try {
-      // 2. On récupère le vrai salon via l'instance de votre VRAI COMPTE (selfbot)
-      if (this.selfbot && interaction.channelId) {
-        const channel = await this.selfbot.channels.fetch(interaction.channelId);
-        if (channel && channel.isText()) {
-          // 3. Vous envoyez le message comme si vous l'aviez tapé vous-même
-          // Support for threads in case they exist:
-          let sentMsg;
-          if (channel.isThread()) {
-            // For threads, standard sending is usually supported on selfbot if we pass threadId
-            // or send directly to the thread channel if Discord allows it.
-            sentMsg = await (channel as any).send({ content, ...options });
-          } else {
-            sentMsg = await (channel as any).send({ content, ...options });
-          }
-
-          // 4. On supprime l'interaction temporaire ⌛ (invisible pour les autres de toute façon)
-          await interaction.deleteReply().catch(() => { });
-          return sentMsg;
-        }
-      }
+      return await this.sendAsSelfbot(interaction, content, options);
     } catch (err: any) {
-      // v0.4.3: on log via le Logger centralisé au lieu d'écrire dans un
-      // fichier stealth_error.txt à côté de l'exe (disk leak + stack trace
-      // non chiffrée sur le disque).
-      logger.error('DiscordManager', "stealthReply: envoi stealth via selfbot échoué", err);
+      logger.error('DiscordManager', 'stealthReply: envoi stealth via selfbot échoué', err);
     }
 
-    // Fallback ultime (si votre compte n'a pas pu envoyer le msg) : le bot répond,
-    // l'utilisateur de l'app verra 'used app' mais aura au moins l'info au lieu d'un crashe silencieux.
+    // Fallback : si le mode furtif est activé, on reste éphémère.
+    // Sinon, le bot répond publiquement pour que la commande reste visible.
+    const ephemeral = this.context.getCommandStealth();
     try {
-      const msg = await interaction.editReply({ content, ...options }).catch(() => { });
-      return msg;
+      if (interaction.deferred) {
+        const msg = await interaction.editReply({ content, ...options }).catch(() => { });
+        return msg;
+      }
+      if (!interaction.replied) {
+        const msg = await interaction.reply({ content, ...options, ephemeral }).catch(() => { });
+        return msg;
+      }
     } catch (e) {
-      logger.warn('DiscordManager', 'stealthReply: fallback editReply échoué', e);
-      return null;
+      logger.warn('DiscordManager', 'stealthReply: fallback échoué', e);
     }
+    return null;
   }
 
   private async handleInteraction(interaction: Interaction): Promise<void> {
@@ -876,19 +910,28 @@ export class DiscordManager extends EventEmitter {
         case 'ghostping': {
           const target = interaction.options.getUser('cible');
           if (!target) {
-            await interaction.reply({ content: '❌ Cible invalide.', ephemeral: true });
+            await this.safeEphemeralReply(interaction, '❌ Cible invalide.');
             return;
           }
-          const channel = interaction.channel;
-          if (!channel || !('send' in channel)) {
-            await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
-            return;
-          }
-          const ghostMsg = await (channel as any).send(`${target}`);
-          if (ghostMsg) {
+
+          try {
+            if (!this.selfbot || !interaction.channelId) {
+              throw new Error('Selfbot non connecté');
+            }
+            if (!interaction.deferred && !interaction.replied) {
+              await interaction.deferReply({ ephemeral: true });
+            }
+            const channel = await this.selfbot.channels.fetch(interaction.channelId);
+            if (!channel || !channel.isText()) {
+              throw new Error('Canal invalide');
+            }
+            const ghostMsg = await (channel as any).send(`${target}`);
             await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
-            await ghostMsg.delete();
-            await interaction.reply({ content: `👻 Ghostping envoyé à ${target.tag}`, ephemeral: true });
+            await ghostMsg.delete().catch(() => { });
+            await interaction.deleteReply().catch(() => { });
+          } catch (err) {
+            logger.error('DiscordManager', '/ghostping selfbot failed', err);
+            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le ghostping via le compte utilisateur.');
           }
           break;
         }
@@ -977,15 +1020,15 @@ export class DiscordManager extends EventEmitter {
         case 'tts': {
           const ttsText = interaction.options.getString('message');
           if (!ttsText) {
-            await interaction.reply({ content: '❌ Message requis.', ephemeral: true });
+            await this.safeEphemeralReply(interaction, '❌ Message requis.');
             return;
           }
-          const ttsChannel = interaction.channel;
-          if (ttsChannel && 'send' in ttsChannel) {
-            await ttsChannel.send({ content: ttsText, tts: true });
-            await interaction.reply({ content: '🔊 Message TTS envoyé!', ephemeral: true });
-          } else {
-            await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
+
+          try {
+            await this.sendAsSelfbot(interaction, ttsText, { tts: true });
+          } catch (err) {
+            logger.error('DiscordManager', '/tts selfbot failed', err);
+            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le TTS via le compte utilisateur.');
           }
           break;
         }
@@ -1415,55 +1458,73 @@ export class DiscordManager extends EventEmitter {
           break;
         }
 
-        // Commandes Troll
+        // Commandes Troll — doivent toujours être envoyées par le selfbot
+        // (compte utilisateur) et non par l'App Bot.
         case 'fuckyou': {
-          const msg = await this.stealthReply(interaction, '┌─┐');
-          if (!msg) break;
-          await new Promise(r => setTimeout(r, 800));
-          await msg.edit('┌─┐\n┴─┴').catch(() => { });
-          await new Promise(r => setTimeout(r, 800));
-          await msg.edit('┌─┐\n┴─┴\nಠ_ರೃ').catch(() => { });
-          await new Promise(r => setTimeout(r, 800));
-          await msg.edit('╭∩╮（︶︿︶）╭∩╮').catch(() => { });
+          try {
+            const msg = await this.sendAsSelfbot(interaction, '┌─┐');
+            await new Promise(r => setTimeout(r, 800));
+            await msg.edit('┌─┐\n┴─┴').catch(() => { });
+            await new Promise(r => setTimeout(r, 800));
+            await msg.edit('┌─┐\n┴─┴\nಠ_ರೃ').catch(() => { });
+            await new Promise(r => setTimeout(r, 800));
+            await msg.edit('╭∩╮（︶︿︶）╭∩╮').catch(() => { });
+          } catch (err) {
+            logger.error('DiscordManager', '/fuckyou selfbot failed', err);
+            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le message via le compte utilisateur.');
+          }
           break;
         }
 
         case 'fakevirus': {
-          const msg = await this.stealthReply(interaction, '⚠️ **WARNING** ⚠️\nInjecting Trojan.Win32.Discord...');
-          if (!msg) break;
-          await new Promise(r => setTimeout(r, 1500));
-          await msg.edit('⚙️ Executing exploit... [root@localhost]').catch(() => { });
-          await new Promise(r => setTimeout(r, 1500));
-          await msg.edit('📥 Downloading payloads... 45%').catch(() => { });
-          await new Promise(r => setTimeout(r, 1500));
-          await msg.edit('📥 Downloading payloads... 100%').catch(() => { });
-          await new Promise(r => setTimeout(r, 1500));
-          await msg.edit('✅ System compromised! IP logged.').catch(() => { });
+          try {
+            const msg = await this.sendAsSelfbot(interaction, '⚠️ **WARNING** ⚠️\nInjecting Trojan.Win32.Discord...');
+            await new Promise(r => setTimeout(r, 1500));
+            await msg.edit('⚙️ Executing exploit... [root@localhost]').catch(() => { });
+            await new Promise(r => setTimeout(r, 1500));
+            await msg.edit('📥 Downloading payloads... 45%').catch(() => { });
+            await new Promise(r => setTimeout(r, 1500));
+            await msg.edit('📥 Downloading payloads... 100%').catch(() => { });
+            await new Promise(r => setTimeout(r, 1500));
+            await msg.edit('✅ System compromised! IP logged.').catch(() => { });
+          } catch (err) {
+            logger.error('DiscordManager', '/fakevirus selfbot failed', err);
+            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le message via le compte utilisateur.');
+          }
           break;
         }
 
         case 'hack': {
           const target = interaction.options.getUser('cible');
           if (!target) {
-            await interaction.reply({ content: '❌ Cible requise.', ephemeral: true });
+            await this.safeEphemeralReply(interaction, '❌ Cible requise.');
             return;
           }
 
-          const msg = await this.stealthReply(interaction, `🕵️ **HACKING ${target.username.toUpperCase()}...**`);
-          if (!msg) break;
+          try {
+            const msg = await this.sendAsSelfbot(interaction, `🕵️ **HACKING ${target.username.toUpperCase()}...**`);
 
-          for (const step of steps) {
-            await new Promise(r => setTimeout(r, 1500));
-            await msg.edit(step).catch(() => { });
+            for (const step of steps) {
+              await new Promise(r => setTimeout(r, 1500));
+              await msg.edit(step).catch(() => { });
+            }
+
+            await new Promise(r => setTimeout(r, 1000));
+            await msg.edit(`🎉 **${target.username}** a été hacké avec succès!\n📧 Email: ${target.username.toLowerCase()}@hacked.com\n🔑 Password: ${'x'.repeat(10)}\n💰 Solde: 0.00$ (pauvre!)`).catch(() => { });
+          } catch (err) {
+            logger.error('DiscordManager', '/hack selfbot failed', err);
+            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le message via le compte utilisateur.');
           }
-
-          await new Promise(r => setTimeout(r, 1000));
-          await msg.edit(`🎉 **${target.username}** a été hacké avec succès!\n📧 Email: ${target.username.toLowerCase()}@hacked.com\n🔑 Password: ${'x'.repeat(10)}\n💰 Solde: 0.00$ (pauvre!)`).catch(() => { });
           break;
         }
 
         case 'disconnect': {
-          await this.stealthReply(interaction, 'Déconnexion simulée...');
+          try {
+            await this.sendAsSelfbot(interaction, 'Déconnexion simulée...');
+          } catch (err) {
+            logger.error('DiscordManager', '/disconnect selfbot failed', err);
+            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le message via le compte utilisateur.');
+          }
           break;
         }
 
@@ -1472,22 +1533,33 @@ export class DiscordManager extends EventEmitter {
           const count = Math.min(interaction.options.getInteger('nombre') || 3, 5); // Max 5
 
           if (!target) {
-            await interaction.reply({ content: '❌ Cible invalide.', ephemeral: true });
+            await this.safeEphemeralReply(interaction, '❌ Cible invalide.');
             return;
           }
 
-          const channel = interaction.channel;
-          if (!channel || !('send' in channel)) {
-            await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
-            return;
-          }
+          try {
+            if (!interaction.deferred && !interaction.replied) {
+              await interaction.deferReply({ ephemeral: true });
+            }
 
-          await interaction.reply({ content: `😈 Annoying ${target.username} x${count}...`, ephemeral: true });
+            if (!this.selfbot || !interaction.channelId) {
+              throw new Error('Selfbot non connecté');
+            }
+            const channel = await this.selfbot.channels.fetch(interaction.channelId);
+            if (!channel || !channel.isText()) {
+              throw new Error('Canal invalide');
+            }
 
-          for (let i = 0; i < count; i++) {
-            const msg = await (channel as any).send(`<@${target.id}> 👋`);
-            setTimeout(() => msg.delete().catch(() => { }), 500);
-            await new Promise(r => setTimeout(r, 800));
+            for (let i = 0; i < count; i++) {
+              const msg = await (channel as any).send(`<@${target.id}> 👋`);
+              setTimeout(() => msg.delete().catch(() => { }), 500);
+              await new Promise(r => setTimeout(r, 800));
+            }
+
+            await interaction.deleteReply().catch(() => { });
+          } catch (err) {
+            logger.error('DiscordManager', '/annoy selfbot failed', err);
+            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer les messages via le compte utilisateur.');
           }
           break;
         }
@@ -1531,10 +1603,10 @@ export class DiscordManager extends EventEmitter {
           const isSpying = this.spyService.isTargetActive(target.id, interaction.guild.id);
 
           if (isSpying) {
-            this.spyService.removeTarget(interaction.guild.id, target.id);
+            this.spyService.removeTarget(target.id, interaction.guild.id);
             await interaction.reply({ content: `👁️ Surveillance arrêtée pour ${target.tag}.`, ephemeral: true });
           } else {
-            this.spyService.addTarget(interaction.guild.id, target.id);
+            this.spyService.addTarget(target.id, interaction.guild.id);
             await interaction.reply({ content: `👁️ Surveillance activée pour ${target.tag} dans ce serveur.`, ephemeral: true });
           }
           break;
@@ -1767,10 +1839,10 @@ export class DiscordManager extends EventEmitter {
 
           const isSpying = this.spyService.isTargetActive(targetUser.id, interaction.guild.id);
           if (isSpying) {
-            this.spyService.removeTarget(interaction.guild.id, targetUser.id);
+            this.spyService.removeTarget(targetUser.id, interaction.guild.id);
             await interaction.reply({ content: `👁️ Surveillance arrêtée pour ${targetUser.tag}.`, ephemeral: true });
           } else {
-            this.spyService.addTarget(interaction.guild.id, targetUser.id);
+            this.spyService.addTarget(targetUser.id, interaction.guild.id);
             await interaction.reply({ content: `👁️ Surveillance activée pour ${targetUser.tag} dans ce serveur.`, ephemeral: true });
           }
           break;

@@ -69,7 +69,10 @@ export class EclipseCore {
       this.wsService,
       this.dbService,
       this.spyService,
-      this.trollService
+      this.trollService,
+      {
+        getCommandStealth: () => this.commandStealth,
+      }
     );
 
     // Quest Service

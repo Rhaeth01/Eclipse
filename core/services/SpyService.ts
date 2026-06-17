@@ -71,6 +71,14 @@ export class SpyService extends EventEmitter {
     return new Map(this.targets);
   }
 
+  restoreTargets(data: Array<[string, string[]]>): void {
+    this.targets.clear();
+    for (const [userId, guildIds] of data) {
+      this.targets.set(userId, new Set(guildIds));
+    }
+    logger.info('Spy', `${this.targets.size} cible(s) restaurée(s)`);
+  }
+
   getUserGuilds(userId: string): Set<string> | undefined {
     return this.targets.get(userId);
   }

@@ -183,24 +183,18 @@ export class StateService {
   // ============================================================================
 
   private serializeSpyTargets(): Array<[string, string[]]> {
-    const targets = (this.spyService as any).targets as Map<string, Set<string>>;
-    return Array.from(targets.entries()).map(([userId, guilds]) => [
+    return Array.from(this.spyService.getTargets().entries()).map(([userId, guilds]) => [
       userId,
       Array.from(guilds)
     ]);
   }
 
-  private deserializeSpyTargets(data: Array<[string, string[]]>): void {
-    const targets = (this.spyService as any).targets as Map<string, Set<string>>;
-    targets.clear();
-    
-    for (const [userId, guildIds] of data) {
-      targets.set(userId, new Set(guildIds));
-    }
-    
-    if (data.length > 0) {
-      logger.info('StateService', `${data.length} cibles spy restaurées`);
-    }
+  private deserializeSpyTargets(_data: Array<[string, string[]]> | undefined): void {
+    // v0.4.8: les anciennes données peuvent avoir les IDs userId/guildId inversés
+    // à cause d'un bug. On efface les cibles au premier démarrage de v0.4.8 pour
+    // repartir sur une base propre. Les utilisateurs devront re-ajouter leurs cibles.
+    this.spyService.clear();
+    logger.info('StateService', 'Cibles spy réinitialisées (migration v0.4.8)');
   }
 
   private deserializeTrolls(trolls: AppState['trolls']): void {

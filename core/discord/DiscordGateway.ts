@@ -32,6 +32,8 @@ export class DiscordGateway extends EventEmitter {
   private reconnectAttempts = 0;
   private destroyed = false;
   private lastPresenceUpdate = 0;
+  private pendingPresence: { activities: any[]; status: string; since?: number } | null = null;
+  private presenceFlushTimer: NodeJS.Timeout | null = null;
 
   constructor(properties: GatewayProperties) {
     super();
@@ -395,12 +397,27 @@ export class DiscordGateway extends EventEmitter {
     status: string,
     since?: number
   ): void {
-    const now = Date.now();
-    if (now - this.lastPresenceUpdate < 15000) {
-      logger.debug("DiscordGateway", "Présence throttlée (<15s)");
-      return;
-    }
-    this.lastPresenceUpdate = now;
+    // Garder toujours la dernière présence demandée. Si on est sous le throttle
+    // de 15s, on programme un flush pour l'appliquer dès que possible.
+    this.pendingPresence = { activities, status, since };
+    this.schedulePresenceFlush();
+  }
+
+  private schedulePresenceFlush(): void {
+    if (this.presenceFlushTimer) return; // déjà programmé
+    if (this.destroyed) return;
+
+    const delay = Math.max(0, 15000 - (Date.now() - this.lastPresenceUpdate));
+    this.presenceFlushTimer = setTimeout(() => this.flushPresence(), delay);
+  }
+
+  private flushPresence(): void {
+    this.presenceFlushTimer = null;
+    if (this.destroyed || !this.pendingPresence) return;
+
+    const { activities, status, since } = this.pendingPresence;
+    this.pendingPresence = null;
+    this.lastPresenceUpdate = Date.now();
 
     this.send({
       op: 3,
@@ -420,6 +437,12 @@ export class DiscordGateway extends EventEmitter {
   destroy(reset = false): void {
     this.destroyed = true;
     this.stopHeartbeat();
+
+    if (this.presenceFlushTimer) {
+      clearTimeout(this.presenceFlushTimer);
+      this.presenceFlushTimer = null;
+    }
+    this.pendingPresence = null;
 
     if (this.ws) {
       this.ws.removeAllListeners();
