@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Eclipse",
-  "version": "0.4.4",
+  "version": "0.4.5",
   "identifier": "app.eclipse.discord",
   "build": {
     "frontendDist": "../out",
@@ -39,6 +39,11 @@
   "bundle": {
     "active": true,
     "targets": "nsis",
+    "windows": {
+      "nsis": {
+        "installerHooks": "./windows/hooks.nsh"
+      }
+    },
     "resources": {
       "../core/dist": "core/dist/",
       "../core/node_modules": "core/node_modules/",

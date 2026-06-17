@@ -284,7 +284,14 @@ pub fn open_setup_webview(app: AppHandle) -> Result<(), String> {
         .title("Eclipse - Setup Slash Commands")
         .inner_size(900.0, 700.0)
         .min_inner_size(600.0, 500.0)
-        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
+        .additional_browser_args(
+            "--disable-features=IsolateOrigins,site-per-process,TranslateUI \
+             --disable-site-isolation-trials \
+             --no-first-run \
+             --no-default-browser-check \
+             --disable-blink-features=AutomationControlled",
+        )
+        .devtools(true)
         .initialization_script(SETUP_INIT_SCRIPT)
         .build()
         .map_err(|e| format!("Erreur création fenêtre: {}", e))?;

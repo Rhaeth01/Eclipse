@@ -153,7 +153,9 @@ export default function Home() {
     if (webviewState !== 'loading') return;
     webviewTimeoutRef.current = setTimeout(() => {
       setWebviewState('failed');
-    }, 20000);
+      // Tuer le WebView silencieux pour éviter la fenêtre bloquée
+      invoke('close_setup_webview').catch(() => {});
+    }, 8000);
     return () => {
       if (webviewTimeoutRef.current) clearTimeout(webviewTimeoutRef.current);
     };

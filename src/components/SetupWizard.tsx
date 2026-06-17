@@ -620,6 +620,29 @@ export function SetupWizard({
                   Une fenêtre Discord s&apos;est ouverte. Créez l&apos;application, puis revenez ici.
                 </p>
 
+                <div className="flex flex-wrap gap-2 mb-4 text-xs text-[#7a7671]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      invoke('close_setup_webview').catch(() => {});
+                      window.open('https://discord.com/developers/applications', '_blank');
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#0c0c0f] border border-white/[0.06] hover:border-white/[0.12] hover:text-[#e8e6e3] transition-colors"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Ouvrir dans mon navigateur
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      invoke('close_setup_webview').catch(() => {});
+                    }}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#0c0c0f] border border-white/[0.06] hover:border-white/[0.12] hover:text-[#e8e6e3] transition-colors"
+                  >
+                    Fermer la fenêtre
+                  </button>
+                </div>
+
                 <div className="space-y-3 mb-6">
                   {[
                     {
