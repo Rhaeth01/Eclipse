@@ -60,8 +60,6 @@ export default function Home() {
   const [appTokenConfigured, setAppTokenConfigured] = useState(false);
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [setupProgress, setSetupProgress] = useState<any>(null);
-  const [webviewState, setWebviewState] = useState<'idle' | 'loading' | 'ready' | 'failed' | 'closed'>('idle');
-  const webviewTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [stealthMode, setStealthMode] = useState(true);
   const [silentTyping, setSilentTyping] = useState(false);
@@ -119,55 +117,11 @@ export default function Home() {
     return () => { unlisten.then(fn => fn()); };
   }, [wsHook]);
 
-  // Surveiller l'état du WebView de setup hybride
-  useEffect(() => {
-    let cancelled = false;
-
-    const unlistenLoaded = listen<void>('setup-webview-loaded', () => {
-      if (cancelled) return;
-      if (webviewTimeoutRef.current) clearTimeout(webviewTimeoutRef.current);
-      setWebviewState('ready');
-    });
-
-    const unlistenClosed = listen<void>('setup-webview-closed', () => {
-      if (cancelled) return;
-      if (webviewTimeoutRef.current) clearTimeout(webviewTimeoutRef.current);
-      setWebviewState('closed');
-    });
-
-    Promise.all([unlistenLoaded, unlistenClosed]).then(([ul, ucl]) => {
-      if (cancelled) {
-        ul(); ucl();
-      }
-    });
-
-    return () => {
-      cancelled = true;
-      unlistenLoaded.then(fn => fn());
-      unlistenClosed.then(fn => fn());
-    };
-  }, []);
-
-  // Timeout: si le WebView ne charge pas en 20s, afficher une erreur
-  useEffect(() => {
-    if (webviewState !== 'loading') return;
-    webviewTimeoutRef.current = setTimeout(() => {
-      setWebviewState('failed');
-      // Tuer le WebView silencieux pour éviter la fenêtre bloquée
-      invoke('close_setup_webview').catch(() => {});
-    }, 8000);
-    return () => {
-      if (webviewTimeoutRef.current) clearTimeout(webviewTimeoutRef.current);
-    };
-  }, [webviewState]);
-
+  // Le setup hybride ouvre simplement le navigateur externe (le WebView2
+  // ne charge pas discord.com/developers de manière fiable). L'utilisateur
+  // copie-colle ensuite l'App ID et le token via les champs du wizard.
   const handleOpenWebview = () => {
-    setWebviewState('loading');
-    invoke('open_setup_webview').catch((err) => {
-      toast.error('Erreur', { description: `Impossible d'ouvrir le portail: ${err}` });
-      setWebviewState('failed');
-      window.open('https://discord.com/developers/applications', '_blank');
-    });
+    window.open('https://discord.com/developers/applications', '_blank');
   };
 
   useEffect(() => {
@@ -1128,7 +1082,6 @@ export default function Home() {
           wsHook.send({ type: 'auto_setup_bot', appName: 'Eclipse' } as any);
         }}
         setupProgress={setupProgress}
-        webviewState={webviewState}
         appTokenConfigured={appTokenConfigured}
       />
 

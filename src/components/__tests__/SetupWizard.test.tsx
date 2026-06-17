@@ -78,12 +78,13 @@ describe('SetupWizard', () => {
       expect(await screen.findByText("Créer une application Discord")).toBeInTheDocument();
     });
 
-    it('has a "Setup hybride" button that opens the setup webview', async () => {
+    it('has a "Setup hybride" button that opens the external browser portal', async () => {
       renderWizard();
       const btn = screen.getByText(/Setup hybride/);
       await userEvent.click(btn);
       expect(mockOnOpenPortal).toHaveBeenCalledTimes(1);
-      expect(await screen.findByText(/Une fenêtre Discord s/)).toBeInTheDocument();
+      // v0.4.6: plus de WebView2. L'input pour coller le token s'affiche.
+      expect(await screen.findByPlaceholderText(/Coller le token ici/)).toBeInTheDocument();
     });
   });
 
@@ -243,29 +244,22 @@ describe('SetupWizard', () => {
     });
   });
 
-  describe('Hybrid setup flow (v0.3.4)', () => {
-    it('shows hybrid instructions after clicking Setup hybride', async () => {
+  describe('Hybrid setup flow (v0.4.6 — external browser)', () => {
+    it('shows hybrid instructions and paste field after clicking Setup hybride', async () => {
       renderWizard();
       await userEvent.click(screen.getByText(/Setup hybride/));
       expect(mockOnOpenPortal).toHaveBeenCalledTimes(1);
-      expect(await screen.findByText(/Une fenêtre Discord s/)).toBeInTheDocument();
-      expect(screen.getByText(/L'App ID est détecté automatiquement/)).toBeInTheDocument();
+      // Le wizard affiche maintenant un input texte pour coller le token manuellement
+      expect(await screen.findByPlaceholderText(/Coller le token ici/)).toBeInTheDocument();
+      expect(screen.getByText(/discord.com\/developers\/applications/)).toBeInTheDocument();
     });
 
-    it('displays captcha_required fallback in the hybrid step', async () => {
-      // Start with no setupProgress (welcome screen), then re-render with
-      // captcha_required → useEffect auto-switches to 'hybrid' step.
-      renderWizardAndRerender({}, { setupProgress: { step: 'captcha_required', message: 'Discord bloque aussi cette étape.' } as any });
-      await waitFor(() => {
-        expect(screen.getAllByText(/Discord bloque aussi cette étape/).length).toBeGreaterThan(0);
-      });
-      expect(screen.getByText(/Méthode manuelle/)).toBeInTheDocument();
-    });
-
-    it('shows hybrid step progress when create_bot step is broadcast', async () => {
-      // Start in welcome, click hybrid, then re-render with in-progress progress.
+    it('opens the external browser portal via the in-wizard button', async () => {
       const utils = renderWizard();
       await userEvent.click(screen.getByText(/Setup hybride/));
+      const openBtn = screen.getByText(/^Ouvrir le portail$/);
+      await userEvent.click(openBtn);
+      expect(mockOnOpenPortal).toHaveBeenCalledTimes(2); // 1 from welcome, 1 from button
       utils.rerender(
         <SetupWizard
           open={true}
@@ -273,10 +267,16 @@ describe('SetupWizard', () => {
           onTokenSave={mockOnTokenSave}
           appTokenConfigured={false}
           onOpenPortal={mockOnOpenPortal}
-          setupProgress={{ step: 'creating_bot', message: 'Ajout du Bot...' } as any}
         />
       );
-      expect(await screen.findByText(/Configuration du Bot/)).toBeInTheDocument();
+      expect(mockOnOpenPortal).toHaveBeenCalledTimes(2);
+    });
+
+    it('disables Validate button when token is empty', async () => {
+      renderWizard();
+      await userEvent.click(screen.getByText(/Setup hybride/));
+      const validateBtn = await screen.findByText(/Valider/);
+      expect(validateBtn.closest('button')).toBeDisabled();
     });
   });
 });

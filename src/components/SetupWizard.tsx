@@ -29,7 +29,6 @@ interface SetupWizardProps {
   onOpenPortal?: () => void;
   onAutoSetup?: () => void;
   setupProgress?: SetupProgress | null;
-  webviewState?: 'idle' | 'loading' | 'ready' | 'failed' | 'closed';
 }
 
 const STEPS: { id: WizardStep; label: string }[] = [
@@ -63,8 +62,7 @@ export function SetupWizard({
   appTokenConfigured,
   onOpenPortal,
   onAutoSetup,
-  setupProgress,
-  webviewState = 'idle'
+  setupProgress
 }: SetupWizardProps) {
   const [step, setStep] = useState<WizardStep>('welcome');
   const [token, setToken] = useState('');
@@ -530,117 +528,98 @@ export function SetupWizard({
                 <h2 className="text-lg font-semibold text-[#e8e6e3] mb-1">
                   Setup hybride
                 </h2>
+                <p className="text-sm text-[#7a7671] mb-6">
+                  Le portail Discord s&apos;ouvre dans votre navigateur. Suivez les étapes puis revenez coller le token.
+                </p>
 
-                {/* WebView loading/ready/failed state */}
-                {webviewState === 'loading' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-lg bg-[#0c0c0f] border border-[#e69a00]/20 mb-6"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Loader className="w-5 h-5 text-[#e69a00] animate-spin shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-[#e8e6e3]">Ouverture du portail Discord...</p>
-                        <p className="text-xs text-[#7a7671] mt-0.5">Chargement de discord.com/developers</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {webviewState === 'ready' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-lg bg-[#0c0c0f] border border-[#2d9e8a]/20 mb-6"
-                  >
-                    <div className="flex items-center gap-3">
-                      <CheckCircle className="w-5 h-5 text-[#2d9e8a] shrink-0" />
-                      <div>
-                        <p className="text-sm font-medium text-[#2d9e8a]">Portail Discord chargé</p>
-                        <p className="text-xs text-[#7a7671] mt-0.5">Suivez les instructions ci-dessous</p>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {webviewState === 'failed' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-lg bg-[#3d1a1e] border border-[#d4656b]/20 mb-6"
-                  >
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-[#d4656b] shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-[#d4656b]">Échec du chargement du portail</p>
-                        <p className="text-xs text-[#7a7671] mt-0.5 mb-3">
-                          Discord n'a pas répondu dans les 20 secondes. Le site est peut-être inaccessible ou
-                          votre connexion est lente.
-                        </p>
-                        <GlowButton
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => onOpenPortal?.()}
-                          icon={<RefreshCw className="w-3.5 h-3.5" />}
-                        >
-                          Réessayer
-                        </GlowButton>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {webviewState === 'closed' && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-lg bg-[#0c0c0f] border border-[#e69a00]/20 mb-6"
-                  >
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-[#e69a00] shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-[#e69a00]">Fenêtre fermée</p>
-                        <p className="text-xs text-[#7a7671] mt-0.5 mb-3">
-                          La fenêtre du portail Discord a été fermée. Rouvrez-la pour continuer.
-                        </p>
+                <div className="space-y-3 mb-6">
+                  {[
+                    {
+                      icon: ExternalLink,
+                      color: '#e69a00',
+                      label: 'Ouvrez discord.com/developers/applications',
+                      sub: 'Dans votre navigateur (Edge, Chrome, Firefox...)',
+                      action: (
                         <GlowButton
                           variant="secondary"
                           size="sm"
                           onClick={() => onOpenPortal?.()}
                           icon={<ExternalLink className="w-3.5 h-3.5" />}
                         >
-                          Rouvrir le portail
+                          Ouvrir le portail
                         </GlowButton>
+                      )
+                    },
+                    {
+                      icon: Bot,
+                      color: '#8b9dc3',
+                      label: 'Créez l\'app, allez dans "Bot", cliquez "Add Bot" puis "Reset Token"',
+                      sub: 'Copiez le token (Ctrl+C) — Eclipse va le détecter automatiquement',
+                    },
+                  ].map(({ icon: Icon, color, label, sub, action }, i) => (
+                    <div
+                      key={i}
+                      className="flex gap-4 p-3.5 rounded-lg bg-[#0c0c0f] border border-white/[0.04]"
+                    >
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${color}10` }}
+                      >
+                        <Icon className="w-5 h-5" style={{ color }} />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-[#e8e6e3]">{label}</p>
+                        <p className="text-xs text-[#7a7671] mt-0.5 mb-2">{sub}</p>
+                        {action}
                       </div>
                     </div>
-                  </motion.div>
-                )}
+                  ))}
+                </div>
 
-                <p className="text-sm text-[#7a7671] mb-6">
-                  Une fenêtre Discord s&apos;est ouverte. Créez l&apos;application, puis revenez ici.
-                </p>
-
-                <div className="flex flex-wrap gap-2 mb-4 text-xs text-[#7a7671]">
+                <div className="p-4 rounded-lg bg-[#0c0c0f] border border-[#e69a00]/20">
+                  <p className="text-xs font-medium text-[#e69a00] mb-2">Token de l&apos;application</p>
+                  <p className="text-xs text-[#7a7671] mb-3">
+                    Collez le token ci-dessous (Ctrl+V). Le Core se charge ensuite d&apos;ajouter le bot et de
+                    générer l&apos;URL d&apos;autorisation.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={token}
+                      onChange={(e) => { setToken(e.target.value); setError(''); }}
+                      placeholder="Coller le token ici (Ctrl+V)"
+                      className="flex-1 px-3 py-2 rounded-md bg-[#070709] border border-white/[0.06] text-sm font-mono text-[#e8e6e3] placeholder:text-[#5c5c66] focus:outline-none focus:border-[#e69a00]/40"
+                    />
+                    <GlowButton
+                      variant="primary"
+                      size="sm"
+                      onClick={async () => {
+                        if (!token.trim() || token.trim().length < 50) {
+                          setError('Token invalide. Il doit faire au moins 50 caractères.');
+                          return;
+                        }
+                        setSaving(true);
+                        setError('');
+                        try {
+                          await onTokenSave(token.trim());
+                          setStep('done');
+                        } catch (err: any) {
+                          setError(err?.message || 'Erreur lors de la sauvegarde du token.');
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      disabled={saving || !token.trim()}
+                    >
+                      {saving ? '...' : 'Valider'}
+                    </GlowButton>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      invoke('close_setup_webview').catch(() => {});
-                      window.open('https://discord.com/developers/applications', '_blank');
-                    }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#0c0c0f] border border-white/[0.06] hover:border-white/[0.12] hover:text-[#e8e6e3] transition-colors"
+                    onClick={handlePasteFromClipboard}
+                    className="text-[10px] text-[#7a7671] hover:text-[#e69a00] mt-2 underline"
                   >
-                    <ExternalLink className="w-3 h-3" />
-                    Ouvrir dans mon navigateur
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      invoke('close_setup_webview').catch(() => {});
-                    }}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-[#0c0c0f] border border-white/[0.06] hover:border-white/[0.12] hover:text-[#e8e6e3] transition-colors"
-                  >
-                    Fermer la fenêtre
+                    Coller depuis le presse-papier
                   </button>
                 </div>
 
@@ -683,82 +662,8 @@ export function SetupWizard({
                   ))}
                 </div>
 
-                {setupProgress && setupProgress.step !== 'error' && setupProgress.step !== 'captcha_required' && (
-                  <div className="space-y-2 mb-6">
-                    {HYBRID_STEPS.map(({ key, label }) => {
-                      const currentIdx = HYBRID_STEPS.findIndex(s => s.key === setupProgress.step);
-                      const stepIdx = HYBRID_STEPS.findIndex(s => s.key === key);
-                      const isDone = currentIdx > stepIdx || setupProgress.step === 'complete';
-                      const isCurrent = currentIdx === stepIdx;
-                      return (
-                        <div
-                          key={key}
-                          className={`flex items-center gap-3 p-2.5 rounded-lg border transition-all duration-300 ${
-                            isDone
-                              ? 'bg-[#0c0c0f] border-[#2d9e8a]/20'
-                              : isCurrent
-                              ? 'bg-[#0c0c0f] border-[#e69a00]/30'
-                              : 'bg-[#0c0c0f] border-white/[0.04] opacity-40'
-                          }`}
-                        >
-                          <div className="w-5 h-5 rounded-full flex items-center justify-center shrink-0">
-                            {isDone ? (
-                              <CheckCircle className="w-4 h-4 text-[#2d9e8a]" />
-                            ) : isCurrent ? (
-                              <Loader className="w-4 h-4 text-[#e69a00] animate-spin" />
-                            ) : (
-                              <div className="w-1.5 h-1.5 rounded-full bg-[#5c5c66]" />
-                            )}
-                          </div>
-                          <p className={`text-xs ${isDone ? 'text-[#2d9e8a]' : isCurrent ? 'text-[#e8e6e3]' : 'text-[#5c5c66]'}`}>
-                            {label}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {setupProgress?.step === 'authorizing' && setupProgress?.authorizeUrl && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="mb-4 p-3 rounded-lg bg-[#0c0c0f] border border-[#e69a00]/20"
-                  >
-                    <GlowButton
-                      variant="primary"
-                      className="w-full"
-                      onClick={() => window.open(setupProgress.authorizeUrl!, '_blank')}
-                      icon={<ExternalLink className="w-4 h-4" />}
-                    >
-                      Autoriser l&apos;application
-                    </GlowButton>
-                  </motion.div>
-                )}
-
-                {(setupProgress?.step === 'error' || setupProgress?.step === 'captcha_required') && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="p-4 rounded-lg bg-[#3d1a1e] border border-[#d4656b]/20 text-center"
-                  >
-                    <ShieldAlert className="w-5 h-5 text-[#d4656b] mx-auto mb-2" />
-                    <p className="text-sm text-[#d4656b] mb-1">
-                      {setupProgress?.step === 'captcha_required'
-                        ? 'Discord bloque aussi cette étape.'
-                        : 'Une erreur est survenue.'}
-                    </p>
-                    <p className="text-xs text-[#7a7671] mb-3">
-                      {setupProgress?.message || 'Utilisez la méthode manuelle.'}
-                    </p>
-                    <GlowButton
-                      variant="danger"
-                      size="sm"
-                      onClick={() => setStep('instructions')}
-                    >
-                      Méthode manuelle
-                    </GlowButton>
-                  </motion.div>
+                {error && (
+                  <p className="text-xs text-[#d4656b] mt-2">{error}</p>
                 )}
 
                 <div className="flex gap-3 mt-4">
