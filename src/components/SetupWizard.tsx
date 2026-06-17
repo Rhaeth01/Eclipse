@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles, Command, ExternalLink, Copy, CheckCircle,
   ArrowRight, ArrowLeft, Key, Bot, Zap, Shield,
-  Loader, AlertCircle, Globe, ShieldAlert
+  Loader, AlertCircle, Globe, ShieldAlert, RefreshCw
 } from 'lucide-react';
 import { GlowButton } from '@/components/ui/GlowButton';
 
@@ -28,6 +28,7 @@ interface SetupWizardProps {
   onOpenPortal?: () => void;
   onAutoSetup?: () => void;
   setupProgress?: SetupProgress | null;
+  webviewState?: 'idle' | 'loading' | 'ready' | 'failed' | 'closed';
 }
 
 const STEPS: { id: WizardStep; label: string }[] = [
@@ -61,7 +62,8 @@ export function SetupWizard({
   appTokenConfigured,
   onOpenPortal,
   onAutoSetup,
-  setupProgress
+  setupProgress,
+  webviewState = 'idle'
 }: SetupWizardProps) {
   const [step, setStep] = useState<WizardStep>('welcome');
   const [token, setToken] = useState('');
@@ -527,6 +529,93 @@ export function SetupWizard({
                 <h2 className="text-lg font-semibold text-[#e8e6e3] mb-1">
                   Setup hybride
                 </h2>
+
+                {/* WebView loading/ready/failed state */}
+                {webviewState === 'loading' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-lg bg-[#0c0c0f] border border-[#e69a00]/20 mb-6"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Loader className="w-5 h-5 text-[#e69a00] animate-spin shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-[#e8e6e3]">Ouverture du portail Discord...</p>
+                        <p className="text-xs text-[#7a7671] mt-0.5">Chargement de discord.com/developers</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {webviewState === 'ready' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-lg bg-[#0c0c0f] border border-[#2d9e8a]/20 mb-6"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="w-5 h-5 text-[#2d9e8a] shrink-0" />
+                      <div>
+                        <p className="text-sm font-medium text-[#2d9e8a]">Portail Discord chargé</p>
+                        <p className="text-xs text-[#7a7671] mt-0.5">Suivez les instructions ci-dessous</p>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {webviewState === 'failed' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-lg bg-[#3d1a1e] border border-[#d4656b]/20 mb-6"
+                  >
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-[#d4656b] shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-[#d4656b]">Échec du chargement du portail</p>
+                        <p className="text-xs text-[#7a7671] mt-0.5 mb-3">
+                          Discord n'a pas répondu dans les 20 secondes. Le site est peut-être inaccessible ou
+                          votre connexion est lente.
+                        </p>
+                        <GlowButton
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => onOpenPortal?.()}
+                          icon={<RefreshCw className="w-3.5 h-3.5" />}
+                        >
+                          Réessayer
+                        </GlowButton>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {webviewState === 'closed' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="p-4 rounded-lg bg-[#0c0c0f] border border-[#e69a00]/20 mb-6"
+                  >
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-[#e69a00] shrink-0 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-[#e69a00]">Fenêtre fermée</p>
+                        <p className="text-xs text-[#7a7671] mt-0.5 mb-3">
+                          La fenêtre du portail Discord a été fermée. Rouvrez-la pour continuer.
+                        </p>
+                        <GlowButton
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => onOpenPortal?.()}
+                          icon={<ExternalLink className="w-3.5 h-3.5" />}
+                        >
+                          Rouvrir le portail
+                        </GlowButton>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
                 <p className="text-sm text-[#7a7671] mb-6">
                   Une fenêtre Discord s&apos;est ouverte. Créez l&apos;application, puis revenez ici.
                 </p>

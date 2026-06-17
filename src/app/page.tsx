@@ -60,6 +60,8 @@ export default function Home() {
   const [appTokenConfigured, setAppTokenConfigured] = useState(false);
   const [showSetupWizard, setShowSetupWizard] = useState(false);
   const [setupProgress, setSetupProgress] = useState<any>(null);
+  const [webviewState, setWebviewState] = useState<'idle' | 'loading' | 'ready' | 'failed' | 'closed'>('idle');
+  const webviewTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [stealthMode, setStealthMode] = useState(true);
   const [silentTyping, setSilentTyping] = useState(false);
@@ -116,6 +118,55 @@ export default function Home() {
     });
     return () => { unlisten.then(fn => fn()); };
   }, [wsHook]);
+
+  // Surveiller l'état du WebView de setup hybride
+  useEffect(() => {
+    let cancelled = false;
+
+    const unlistenLoaded = listen<void>('setup-webview-loaded', () => {
+      if (cancelled) return;
+      if (webviewTimeoutRef.current) clearTimeout(webviewTimeoutRef.current);
+      setWebviewState('ready');
+    });
+
+    const unlistenClosed = listen<void>('setup-webview-closed', () => {
+      if (cancelled) return;
+      if (webviewTimeoutRef.current) clearTimeout(webviewTimeoutRef.current);
+      setWebviewState('closed');
+    });
+
+    Promise.all([unlistenLoaded, unlistenClosed]).then(([ul, ucl]) => {
+      if (cancelled) {
+        ul(); ucl();
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unlistenLoaded.then(fn => fn());
+      unlistenClosed.then(fn => fn());
+    };
+  }, []);
+
+  // Timeout: si le WebView ne charge pas en 20s, afficher une erreur
+  useEffect(() => {
+    if (webviewState !== 'loading') return;
+    webviewTimeoutRef.current = setTimeout(() => {
+      setWebviewState('failed');
+    }, 20000);
+    return () => {
+      if (webviewTimeoutRef.current) clearTimeout(webviewTimeoutRef.current);
+    };
+  }, [webviewState]);
+
+  const handleOpenWebview = () => {
+    setWebviewState('loading');
+    invoke('open_setup_webview').catch((err) => {
+      toast.error('Erreur', { description: `Impossible d'ouvrir le portail: ${err}` });
+      setWebviewState('failed');
+      window.open('https://discord.com/developers/applications', '_blank');
+    });
+  };
 
   useEffect(() => {
     const unlisten = listen<string>('core-startup-error', (event) => {
@@ -1069,15 +1120,13 @@ export default function Home() {
           localStorage.setItem('eclipse_onboarded', 'true');
         }}
         onOpenPortal={() => {
-          invoke('open_setup_webview').catch((err) => {
-            toast.error('Erreur', { description: `Impossible d'ouvrir le portail: ${err}` });
-            window.open('https://discord.com/developers/applications', '_blank');
-          });
+          handleOpenWebview();
         }}
         onAutoSetup={() => {
           wsHook.send({ type: 'auto_setup_bot', appName: 'Eclipse' } as any);
         }}
         setupProgress={setupProgress}
+        webviewState={webviewState}
         appTokenConfigured={appTokenConfigured}
       />
 

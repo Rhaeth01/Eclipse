@@ -154,6 +154,7 @@ pub fn run() {
       secure_store::clear_bot_token,
       secure_store::get_ws_secret,
       setup_webview::open_setup_webview,
+      setup_webview::setup_webview_loaded,
       setup_webview::bot_token_extracted,
       setup_webview::bot_app_id_extracted,
       setup_webview::close_setup_webview

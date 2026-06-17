@@ -239,15 +239,37 @@ const SETUP_INIT_SCRIPT: &str = r###"
   });
   bodyObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
 
+  var loadedNotified = false;
+
+  function notifyWebviewLoaded() {
+    if (loadedNotified) return;
+    loadedNotified = true;
+    try {
+      window.__TAURI_INTERNALS__.invoke('setup_webview_loaded');
+    } catch(e) {
+      console.error('[Eclipse Setup] Failed to notify loaded:', e);
+    }
+  }
+
+  // Notifier que la page est chargée même si le DOM est vide (SPA progressive)
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(notifyWebviewLoaded, 2000);
+  } else {
+    window.addEventListener('DOMContentLoaded', function() {
+      setTimeout(notifyWebviewLoaded, 2000);
+    });
+  }
+
   // Initial page
   setTimeout(onNavigation, 1000);
+  setTimeout(notifyWebviewLoaded, 3000);
 })();
 "###;
 
 #[tauri::command]
 pub fn open_setup_webview(app: AppHandle) -> Result<(), String> {
-    use tauri::WebviewWindowBuilder;
     use tauri::WebviewUrl;
+    use tauri::WebviewWindowBuilder;
 
     if let Some(existing) = app.get_webview_window("setup") {
         let _ = existing.close();
@@ -257,15 +279,29 @@ pub fn open_setup_webview(app: AppHandle) -> Result<(), String> {
         .parse()
         .map_err(|e| format!("URL invalide: {}", e))?;
 
-    let _webview = WebviewWindowBuilder::new(&app, "setup", WebviewUrl::External(url))
+    let app_clone = app.clone();
+    let webview = WebviewWindowBuilder::new(&app, "setup", WebviewUrl::External(url))
         .title("Eclipse - Setup Slash Commands")
         .inner_size(900.0, 700.0)
         .min_inner_size(600.0, 500.0)
+        .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36")
         .initialization_script(SETUP_INIT_SCRIPT)
         .build()
         .map_err(|e| format!("Erreur création fenêtre: {}", e))?;
 
+    webview.on_window_event(move |event| {
+        if matches!(event, tauri::WindowEvent::Destroyed) {
+            let _ = app_clone.emit("setup-webview-closed", ());
+        }
+    });
+
     Ok(())
+}
+
+#[tauri::command]
+pub fn setup_webview_loaded(app: AppHandle) -> Result<(), String> {
+    app.emit("setup-webview-loaded", ())
+        .map_err(|e| format!("Erreur émission événement: {}", e))
 }
 
 #[tauri::command]
