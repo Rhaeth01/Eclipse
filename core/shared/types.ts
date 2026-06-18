@@ -21,6 +21,7 @@ export type WsMessageType =
   | 'create_backup' | 'backup_success'
   // Status queries
   | 'get_ratelimit_status'
+  | 'get_commands' | 'commands_list'
   // Commands
   | 'command_used'
   // Quests
@@ -108,6 +109,15 @@ export interface CreateBackupMessage extends WsBaseMessage {
 
 export interface GetRateLimitStatusMessage extends WsBaseMessage {
   type: 'get_ratelimit_status';
+}
+
+export interface GetCommandsMessage extends WsBaseMessage {
+  type: 'get_commands';
+}
+
+export interface CommandsListMessage extends WsBaseMessage {
+  type: 'commands_list';
+  data: unknown;
 }
 
 // ============================================================================
@@ -365,6 +375,8 @@ export type WsMessage =
   | ClearRichPresenceMessage
   | CreateBackupMessage
   | GetRateLimitStatusMessage
+  | GetCommandsMessage
+  | CommandsListMessage
   | GetQuestsMessage
   | StartQuestMessage
   | StopQuestMessage
@@ -404,6 +416,7 @@ export function isWsMessage(data: unknown): data is WsMessage {
      'set_stealth_mode', 'set_silent_typing', 'start_animation', 'stop_animation',
      'start_rpc_animation', 'stop_rpc_animation', 'set_rich_presence', 'clear_rich_presence',
      'create_backup', 'backup_success', 'command_used',
+     'get_commands', 'commands_list',
      'get_quests', 'start_quest', 'stop_quest', 'claim_quest_reward', 'create_mock_quests',
      'quests_update', 'quest_progress', 'quest_status', 'core_log', 'update_sniper_config',
      'enable_autobump', 'disable_autobump', 'get_autobump_status', 'autobump_status',

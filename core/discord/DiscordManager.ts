@@ -20,9 +20,6 @@ import {
   ContextMenuCommandBuilder,
   ApplicationCommandType,
   EmbedBuilder,
-  ActionRowBuilder,
-  StringSelectMenuBuilder,
-  StringSelectMenuOptionBuilder,
   Interaction
 } from 'discord.js';
 import { EventEmitter } from 'events';
@@ -30,11 +27,10 @@ import { logger } from '../services/Logger';
 import { DatabaseService } from '../services/DatabaseService';
 import { SpyService } from '../services/SpyService';
 import { TrollService } from '../services/TrollService';
-import { CommandManager } from '../commands';
-import { asciiMap, smallCaps, fullwidth, emojiMap, responses, roasts, compliments, jokes, steps } from '../shared/constants';
+import { createCommandRegistry, type CommandContext, type CommandRegistry } from '../commands';
 import { WebSocketService } from '../services/WebSocketService';
 import { rateLimiter } from '../services/RateLimiter';
-import { parseRateLimitHeaders, isRateLimitError, getRetryAfterFromError } from '../utils/rateLimitHeaders';
+import { isRateLimitError, getRetryAfterFromError } from '../utils/rateLimitHeaders';
 
 export interface DiscordConfig {
   userToken: string;
@@ -73,29 +69,21 @@ export interface DiscordEvents {
 }
 
 export class DiscordManager extends EventEmitter {
-  private selfbot: DiscordUserClient | null = null;
+  public selfbot: DiscordUserClient | null = null;
   private appBot: BotClient | null = null;
   private config: DiscordConfig | null = null;
   private wsService: WebSocketService;
   private dbService: DatabaseService;
   private spyService: SpyService;
   private trollService: TrollService;
-  private commandManager: CommandManager;
+  private commandRegistry: CommandRegistry;
+  private commandCtx: CommandContext | null = null;
   private context: DiscordManagerContext;
 
-  // Caches
-  private snipeCache = new Map<string, { content: string; author: string; timestamp: number }>();
-  private editsnipeCache = new Map<string, { oldContent: string; author: string; timestamp: number }>();
-  private globalAfkMessage: string | null = null;
-
-  // Commandes qui doivent toujours être envoyées par le selfbot (compte utilisateur)
-  // et être visibles par tout le monde, même en mode furtif.
-  private static readonly SELFBOT_PUBLIC_COMMANDS = new Set([
-    'fakevirus', 'fuckyou', 'hack', 'disconnect',
-    'mock', 'ascii', 'nighty', 'vaporwave', 'emojify', 'clap', 'reverse', 'uwu', 'tts',
-    'roll', 'coinflip', '8ball', 'choose', 'love', 'roast', 'compliment', 'joke', 'ship', 'rate',
-    'cat', 'dog', 'meme', 'color'
-  ]);
+  // Caches — publics pour que le registre y accède via CommandContext.dm
+  public snipeCache = new Map<string, { content: string; author: string; timestamp: number }>();
+  public editsnipeCache = new Map<string, { oldContent: string; author: string; timestamp: number }>();
+  public globalAfkMessage: string | null = null;
 
   constructor(
     wsService: WebSocketService,
@@ -110,10 +98,28 @@ export class DiscordManager extends EventEmitter {
     this.spyService = spyService;
     this.trollService = trollService;
     this.context = context;
-    this.commandManager = new CommandManager();
+    this.commandRegistry = createCommandRegistry();
 
     // Configure le TrollService avec les handlers rate-limités
     this.setupTrollServiceHandlers();
+  }
+
+  /**
+   * Injecte le contexte complet (services) une fois qu'EclipseCore a tout créé.
+   * Requis avant que les slash commands puissent être dispatchées.
+   */
+  setCommandContext(ctx: CommandContext): void {
+    this.commandCtx = ctx;
+  }
+
+  /** Accès au registre (pour /help, UI, introspection). */
+  getCommandRegistry(): CommandRegistry {
+    return this.commandRegistry;
+  }
+
+  /** Setter pour l'AFK (utilisé par /misc afk via CommandContext.dm). */
+  setGlobalAfkMessage(msg: string | null): void {
+    this.globalAfkMessage = msg;
   }
 
   // ============================================================================
@@ -425,288 +431,8 @@ export class DiscordManager extends EventEmitter {
   }
 
   private buildSlashCommands(): any[] {
-    return [
-      new SlashCommandBuilder()
-        .setName('help').setDescription('Affiche la liste des commandes')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('ping').setDescription('Affiche la latence')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('clear').setDescription('Supprime vos messages')
-        .addIntegerOption(o => o.setName('count').setDescription('Nombre').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('snipe').setDescription('Message supprimé récent')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('editsnipe').setDescription('Message édité récent')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('afk').setDescription('Mode AFK')
-        .addStringOption(o => o.setName('message').setDescription('Raison').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('ghostping').setDescription('Mention furtive')
-        .addUserOption(o => o.setName('cible').setDescription('Victime').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('spy').setDescription('Surveillance')
-        .addUserOption(o => o.setName('cible').setDescription('Personne').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('kick').setDescription('Expulse un membre')
-        .addUserOption(o => o.setName('cible').setDescription('Cible').setRequired(true))
-        .addStringOption(o => o.setName('raison').setDescription('Raison').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('ban').setDescription('Bannit un membre')
-        .addUserOption(o => o.setName('cible').setDescription('Cible').setRequired(true))
-        .addStringOption(o => o.setName('raison').setDescription('Raison').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('hackban').setDescription('Bannit par ID')
-        .addStringOption(o => o.setName('id').setDescription('ID').setRequired(true))
-        .addStringOption(o => o.setName('raison').setDescription('Raison').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('unban').setDescription('Débannit par ID')
-        .addStringOption(o => o.setName('id').setDescription('ID').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('slowmode').setDescription('Mode lent')
-        .addIntegerOption(o => o.setName('secondes').setDescription('Secondes').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('lock').setDescription('Verrouille le salon')
-        .setIntegrationTypes([0, 1]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('unlock').setDescription('Déverrouille le salon')
-        .setIntegrationTypes([0, 1]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('nuke').setDescription('Clone et supprime le salon')
-        .setIntegrationTypes([0]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('userinfo').setDescription('Infos utilisateur')
-        .addUserOption(o => o.setName('cible').setDescription('Cible').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('avatar').setDescription('Avatar utilisateur')
-        .addUserOption(o => o.setName('cible').setDescription('Cible').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('typing').setDescription('Indicateur d\'écriture perpétuel')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('mimic').setDescription('Imite quelqu\'un avec webhook')
-        .addUserOption(o => o.setName('cible').setDescription('Utilisateur à imiter').setRequired(true))
-        .addStringOption(o => o.setName('message').setDescription('Message à envoyer').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('tts').setDescription('Envoie un message TTS')
-        .addStringOption(o => o.setName('message').setDescription('Message').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('mock').setDescription('MoCkInG sPoNgEbOb TeXt')
-        .addStringOption(o => o.setName('texte').setDescription('Texte à convertir').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('ascii').setDescription('Convertit en ASCII art')
-        .addStringOption(o => o.setName('texte').setDescription('Texte (max 10 caractères)').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('serverinfo').setDescription('Infos du serveur')
-        .addStringOption(o => o.setName('guild_id').setDescription('ID du Serv. cible (Requis en DM)').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('autobump').setDescription('Active le bump automatique')
-        .addIntegerOption(o => o.setName('interval').setDescription('Interval en minutes (défaut: 120)').setRequired(false))
-        .addIntegerOption(o => o.setName('offset').setDescription('Décalage initial en min (défaut: 0)').setRequired(false))
-        .addStringOption(o => o.setName('guild_id').setDescription('ID du Serv. cible (Requis en DM)').setRequired(false))
-        .addStringOption(o => o.setName('channel_id').setDescription('ID du Salon cible (Requis en DM)').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('stopbump').setDescription('Désactive le bump automatique')
-        .addStringOption(o => o.setName('guild_id').setDescription('ID du Serv. cible (Requis en DM)').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('bumpstatus').setDescription('Statut du bump automatique')
-        .addStringOption(o => o.setName('guild_id').setDescription('ID du Serv. cible (Requis en DM)').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-
-      // Commandes Fun
-      new SlashCommandBuilder()
-        .setName('roll').setDescription('Lance un dé (1-100 par défaut)')
-        .addStringOption(o => o.setName('dice').setDescription('Format: 6, 2d6, 20...').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('coinflip').setDescription('Pile ou Face')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('8ball').setDescription('Pose une question à la boule magique')
-        .addStringOption(o => o.setName('question').setDescription('Ta question').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('choose').setDescription('Choisit aléatoirement entre plusieurs options')
-        .addStringOption(o => o.setName('options').setDescription('Options séparées par |').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('love').setDescription('Calculateur d\'amour')
-        .addUserOption(o => o.setName('cible').setDescription('Personne à tester').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('roast').setDescription('Envoie une pique humoristique')
-        .addUserOption(o => o.setName('cible').setDescription('Victime').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('compliment').setDescription('Envoie un compliment')
-        .addUserOption(o => o.setName('cible').setDescription('Personne à complimenter').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('joke').setDescription('Raconte une blague')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('rate').setDescription('Note quelque chose sur 10')
-        .addStringOption(o => o.setName('chose').setDescription('Chose à noter').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('nighty').setDescription('Convertit en small caps (ɴɪɢʜᴛʏ)')
-        .addStringOption(o => o.setName('texte').setDescription('Texte à convertir').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('vaporwave').setDescription('Convertit en fullwidth (ｖａｐｏｒｗａｖｅ)')
-        .addStringOption(o => o.setName('texte').setDescription('Texte à convertir').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('emojify').setDescription('Convertit en emojis (🇭🇪🇱🇱🇴)')
-        .addStringOption(o => o.setName('texte').setDescription('Texte à convertir').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('clap').setDescription('Ajoute des 👏 entre les mots')
-        .addStringOption(o => o.setName('texte').setDescription('Texte').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('ship').setDescription('Ship deux personnes')
-        .addUserOption(o => o.setName('user1').setDescription('Première personne').setRequired(true))
-        .addUserOption(o => o.setName('user2').setDescription('Deuxième personne').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-
-      // Commandes Utilitaires
-      new SlashCommandBuilder()
-        .setName('calc').setDescription('Calculatrice')
-        .addStringOption(o => o.setName('expression').setDescription('Ex: 2 + 2').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('poll').setDescription('Crée un sondage')
-        .addStringOption(o => o.setName('question').setDescription('Question').setRequired(true))
-        .addStringOption(o => o.setName('option1').setDescription('Option 1').setRequired(true))
-        .addStringOption(o => o.setName('option2').setDescription('Option 2').setRequired(true))
-        .addStringOption(o => o.setName('option3').setDescription('Option 3').setRequired(false))
-        .addStringOption(o => o.setName('option4').setDescription('Option 4').setRequired(false))
-        .setIntegrationTypes([0]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('password').setDescription('Génère un mot de passe sécurisé')
-        .addIntegerOption(o => o.setName('longueur').setDescription('Longueur (défaut: 16)').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('color').setDescription('Génère ou affiche une couleur')
-        .addStringOption(o => o.setName('hex').setDescription('Code hex (optionnel)').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-
-      // Commandes Troll
-      new SlashCommandBuilder()
-        .setName('fuckyou').setDescription('Animation middle finger troll')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('fakevirus').setDescription('Animation fake trojan download')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('annoy').setDescription('Spam mention silencieux (troll)')
-        .addUserOption(o => o.setName('cible').setDescription('Victime').setRequired(true))
-        .addIntegerOption(o => o.setName('nombre').setDescription('Nombre de mentions (1-5, défaut: 3)').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('deletesend').setDescription('Active/désactive la suppression auto des messages d\'un utilisateur')
-        .addUserOption(o => o.setName('cible').setDescription('Utilisateur cible').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('hack').setDescription('Simulation de hack (fake)')
-        .addUserOption(o => o.setName('cible').setDescription('Victime').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('disconnect').setDescription('Fait semblant de se déconnecter')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-
-      // Image commands
-      new SlashCommandBuilder()
-        .setName('cat').setDescription('Image aléatoire de chat')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('dog').setDescription('Image aléatoire de chien')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('meme').setDescription('Meme aléatoire depuis Reddit')
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-
-      // Voice commands
-      new SlashCommandBuilder()
-        .setName('joinvc').setDescription('Rejoindre un salon vocal')
-        .addChannelOption(o => o.setName('salon').setDescription('Salon vocal à rejoindre').setRequired(true))
-        .setIntegrationTypes([0]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('leavevc').setDescription('Quitter le salon vocal actuel')
-        .setIntegrationTypes([0]).setContexts([0]),
-
-      // Utility commands
-      new SlashCommandBuilder()
-        .setName('translate').setDescription('Traduit un texte')
-        .addStringOption(o => o.setName('texte').setDescription('Texte à traduire').setRequired(true))
-        .addStringOption(o => o.setName('langue').setDescription('Code langue cible (fr, en, es, de...)').setRequired(false))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('weather').setDescription('Météo d\'une ville')
-        .addStringOption(o => o.setName('ville').setDescription('Nom de la ville').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('qr').setDescription('Génère un QR code')
-        .addStringOption(o => o.setName('texte').setDescription('Texte ou URL à encoder').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-
-      // Mod commands
-      new SlashCommandBuilder()
-        .setName('role').setDescription('Donne ou retire un rôle')
-        .addUserOption(o => o.setName('cible').setDescription('Utilisateur cible').setRequired(true))
-        .addRoleOption(o => o.setName('role').setDescription('Rôle à donner/retirer').setRequired(true))
-        .setIntegrationTypes([0]).setContexts([0]),
-      new SlashCommandBuilder()
-        .setName('purge').setDescription('Supprime des messages par catégorie')
-        .addStringOption(o => o.setName('type').setDescription('Type de messages').addChoices(
-          { name: 'Tous', value: 'all' },
-          { name: 'Bots', value: 'bots' },
-          { name: 'Embeds', value: 'embeds' },
-          { name: 'Images', value: 'images' }
-        ).setRequired(true))
-        .addIntegerOption(o => o.setName('count').setDescription('Nombre (défaut: 50)').setRequired(false))
-        .setIntegrationTypes([0]).setContexts([0]),
-
-      // Text commands
-      new SlashCommandBuilder()
-        .setName('reverse').setDescription('Retourne le texte')
-        .addStringOption(o => o.setName('texte').setDescription('Texte à inverser').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new SlashCommandBuilder()
-        .setName('uwu').setDescription('Convertit en texte uwu')
-        .addStringOption(o => o.setName('texte').setDescription('Texte à convertir').setRequired(true))
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-
-      // Context Menus
-      new ContextMenuCommandBuilder()
-        .setName('Ghostping').setType(ApplicationCommandType.User)
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-      new ContextMenuCommandBuilder()
-        .setName('Spy User').setType(ApplicationCommandType.User)
-        .setIntegrationTypes([0, 1]).setContexts([0, 1, 2]),
-    ];
+    // Le registre est l'unique source de vérité — voir core/commands/
+    return this.commandRegistry.build() as any[];
   }
 
   /**
@@ -714,7 +440,7 @@ export class DiscordManager extends EventEmitter {
    * comme venant de l'utilisateur et non de l'App Bot. Utilise deferReply pour
    * éviter l'ACK visible "⌛", puis supprime la réponse éphémère.
    */
-  private async sendAsSelfbot(interaction: any, content: string, options: any = {}): Promise<any> {
+  public async sendAsSelfbot(interaction: any, content: string, options: any = {}): Promise<any> {
     if (!this.selfbot || !interaction.channelId) {
       throw new Error('Selfbot non connecté ou canal inconnu');
     }
@@ -737,7 +463,7 @@ export class DiscordManager extends EventEmitter {
    * Réponse éphémère sécurisée : ne plante pas si l'interaction a déjà été
    * traitée. Utilisé pour les messages d'erreur privés.
    */
-  private async safeEphemeralReply(interaction: any, content: string): Promise<void> {
+  public async safeEphemeralReply(interaction: any, content: string): Promise<void> {
     try {
       if (interaction.deferred) {
         await interaction.editReply({ content });
@@ -755,7 +481,7 @@ export class DiscordManager extends EventEmitter {
    * Garde un fallback sur l'App Bot pour les commandes qui ne sont pas
    * explicitement marquées comme "toujours selfbot".
    */
-  private async stealthReply(interaction: any, content: string, options: any = {}): Promise<any> {
+  public async stealthReply(interaction: any, content: string, options: any = {}): Promise<any> {
     try {
       return await this.sendAsSelfbot(interaction, content, options);
     } catch (err: any) {
@@ -789,9 +515,41 @@ export class DiscordManager extends EventEmitter {
       return;
     }
 
-    // Gérer les Context Menus (clic droit sur utilisateur)
+    // Autocompletion
+    if (interaction.isAutocomplete()) {
+      if (this.commandCtx) {
+        await this.commandRegistry.dispatchAutocomplete(interaction as any, this.commandCtx);
+      }
+      return;
+    }
+
+    // Menus contextuels (user)
     if (interaction.isUserContextMenuCommand()) {
-      await this.handleUserContextMenu(interaction);
+      if (!this.commandCtx) {
+        await interaction.reply({ content: '❌ Contexte non initialisé.', ephemeral: true }).catch(() => { });
+        return;
+      }
+      logger.info('DiscordManager', `Context Menu (user): ${interaction.commandName}`);
+      try {
+        await this.commandRegistry.dispatchUserContextMenu(interaction as any, this.commandCtx);
+      } catch (err) {
+        logger.error('DiscordManager', `Erreur context menu ${interaction.commandName}`, err);
+      }
+      return;
+    }
+
+    // Menus contextuels (message)
+    if (interaction.isMessageContextMenuCommand()) {
+      if (!this.commandCtx) {
+        await interaction.reply({ content: '❌ Contexte non initialisé.', ephemeral: true }).catch(() => { });
+        return;
+      }
+      logger.info('DiscordManager', `Context Menu (message): ${interaction.commandName}`);
+      try {
+        await this.commandRegistry.dispatchMessageContextMenu(interaction as any, this.commandCtx);
+      } catch (err) {
+        logger.error('DiscordManager', `Erreur context menu ${interaction.commandName}`, err);
+      }
       return;
     }
 
@@ -800,1060 +558,15 @@ export class DiscordManager extends EventEmitter {
     const { commandName } = interaction;
     logger.info('DiscordManager', `Slash Command: /${commandName}`);
 
+    if (!this.commandCtx) {
+      await interaction.reply({ content: '❌ Contexte non initialisé.', ephemeral: true }).catch(() => { });
+      return;
+    }
+
     try {
-      switch (commandName) {
-        case 'ping': {
-          const start = Date.now();
-          await interaction.reply({ content: '🏓 Pong!', ephemeral: true });
-          const latency = Date.now() - start;
-          await interaction.editReply({ content: `🏓 Pong! \`${latency}ms\`` });
-          break;
-        }
-
-        case 'help': {
-          const helpText = `
-**Eclipse - Commandes Slash**
-
-🔹 **Basiques**
-/ping - Latence du bot
-/help - Affiche cette aide
-/clear [nombre] - Supprime vos messages
-/snipe - Dernier message supprimé
-/editsnipe - Dernier message édité
-/afk [message] - Mode AFK
-
-🔹 **Modération**
-/kick @user [raison] - Expulser un membre
-/ban @user [raison] - Bannir un membre
-/spy @user - Surveiller un utilisateur
-
-🔹 **Fun**
-/ghostping @user - Mention furtive
-/annoy @user [nombre] - Spam mention silencieux
-/hack @user - Simulation de hack
-/disconnect - Fausse déconnexion
-/typing - Indicateur d'écriture
-/mimic @user <message> - Imiter quelqu'un
-/tts <message> - Message TTS
-
-🔹 **Utilitaires**
-/userinfo @user - Infos utilisateur
-/avatar @user - Avatar utilisateur
-/serverinfo - Infos du serveur
-/calc <expression> - Calculatrice
-/password [longueur] - Génère un mot de passe
-
-🔹 **Troll Settings**
-/deletesend @user - Active/désactive la suppression auto des messages
-          `.trim();
-          await interaction.reply({ content: helpText, ephemeral: true });
-          break;
-        }
-
-        case 'clear': {
-          const count = interaction.options.getInteger('count') || 10;
-          await interaction.reply({ content: `🔄 Suppression de ${count} messages...`, ephemeral: true });
-
-          const channel = interaction.channel;
-          if (channel?.isTextBased()) {
-            const messages = await channel.messages.fetch({ limit: 100 });
-            const myMessages = messages.filter(m => m.author.id === this.selfbot?.user?.id).first(count);
-
-            for (const m of myMessages) {
-              await m.delete().catch(() => { });
-              await new Promise(r => setTimeout(r, 600));
-            }
-            await interaction.editReply({ content: `✅ ${myMessages.length} messages supprimés.` });
-          }
-          break;
-        }
-
-        case 'snipe': {
-          const snipe = this.snipeCache.get(interaction.channelId);
-          if (!snipe) {
-            await interaction.reply({ content: '❌ Aucun message à snipe.', ephemeral: true });
-            return;
-          }
-          const embed = new EmbedBuilder()
-            .setTitle('🎯 Message supprimé')
-            .setDescription(snipe.content)
-            .setFooter({ text: `Par ${snipe.author}` })
-            .setTimestamp(snipe.timestamp)
-            .setColor(0x5865F2);
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          break;
-        }
-
-        case 'editsnipe': {
-          const editSnipe = this.editsnipeCache.get(interaction.channelId);
-          if (!editSnipe) {
-            await interaction.reply({ content: '❌ Aucun message à editsnipe.', ephemeral: true });
-            return;
-          }
-          const embed = new EmbedBuilder()
-            .setTitle('✏️ Message édité')
-            .setDescription(editSnipe.oldContent)
-            .setFooter({ text: `Par ${editSnipe.author}` })
-            .setTimestamp(editSnipe.timestamp)
-            .setColor(0x57F287);
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          break;
-        }
-
-        case 'afk': {
-          const message = interaction.options.getString('message') || 'Je suis AFK';
-          this.globalAfkMessage = message;
-          await interaction.reply({ content: `💤 Mode AFK activé: "${message}"`, ephemeral: true });
-          break;
-        }
-
-        case 'ghostping': {
-          const target = interaction.options.getUser('cible');
-          if (!target) {
-            await this.safeEphemeralReply(interaction, '❌ Cible invalide.');
-            return;
-          }
-
-          try {
-            if (!this.selfbot || !interaction.channelId) {
-              throw new Error('Selfbot non connecté');
-            }
-            if (!interaction.deferred && !interaction.replied) {
-              await interaction.deferReply({ ephemeral: true });
-            }
-            const channel = await this.selfbot.channels.fetch(interaction.channelId);
-            if (!channel || !channel.isText()) {
-              throw new Error('Canal invalide');
-            }
-            const ghostMsg = await (channel as any).send(`${target}`);
-            await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
-            await ghostMsg.delete().catch(() => { });
-            await interaction.deleteReply().catch(() => { });
-          } catch (err) {
-            logger.error('DiscordManager', '/ghostping selfbot failed', err);
-            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le ghostping via le compte utilisateur.');
-          }
-          break;
-        }
-
-        case 'userinfo': {
-          const target = interaction.options.getUser('cible') || interaction.user;
-          const member = interaction.guild?.members.cache.get(target.id);
-
-          const embed = new EmbedBuilder()
-            .setTitle(`👤 ${target.tag}`)
-            .setThumbnail(target.displayAvatarURL())
-            .addFields(
-              { name: 'ID', value: target.id, inline: true },
-              { name: 'Créé le', value: `<t:${Math.floor(target.createdTimestamp / 1000)}:R>`, inline: true },
-              { name: 'Bot', value: target.bot ? 'Oui' : 'Non', inline: true }
-            )
-            .setColor(0x5865F2);
-
-          if (member) {
-            embed.addFields(
-              { name: 'Rejoint le', value: `<t:${Math.floor((member.joinedTimestamp || 0) / 1000)}:R>`, inline: true },
-              { name: 'Rôles', value: `${member.roles.cache.size - 1} rôles`, inline: true }
-            );
-          }
-
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          break;
-        }
-
-        case 'avatar': {
-          const target = interaction.options.getUser('cible') || interaction.user;
-          const embed = new EmbedBuilder()
-            .setTitle(`🖼️ Avatar de ${target.tag}`)
-            .setImage(target.displayAvatarURL({ size: 4096 }))
-            .setColor(0x5865F2);
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          break;
-        }
-
-        case 'typing': {
-          await interaction.reply({ content: '⌨️ Indicateur d\'écriture activé pendant 60s...', ephemeral: true });
-          const channel = interaction.channel;
-          if (channel?.isTextBased()) {
-            // v0.4.1 (audit fix): tracking explicite de l'interval pour éviter
-            // les leaks quand l'utilisateur relance /typing plusieurs fois.
-            const intervalId = setInterval(() => {
-              (channel as any).sendTyping().catch(() => { });
-            }, 8000);
-            setTimeout(() => clearInterval(intervalId), 60000);
-          }
-          break;
-        }
-
-        case 'mimic': {
-          const target = interaction.options.getUser('cible');
-          const mimicText = interaction.options.getString('message');
-          if (!target || !mimicText) {
-            await interaction.reply({ content: '❌ Arguments manquants.', ephemeral: true });
-            return;
-          }
-
-          try {
-            const channel = interaction.channel;
-            if (channel?.isTextBased()) {
-              let targetChannel: any = channel;
-              let threadId: string | undefined = undefined;
-
-              if (channel.isThread()) {
-                targetChannel = channel.parent;
-                threadId = channel.id;
-              }
-
-              const webhook = await targetChannel.createWebhook(target.username, {
-                avatar: target.displayAvatarURL()
-              });
-              await webhook.send({ content: mimicText, threadId });
-              await webhook.delete();
-              await interaction.reply({ content: `✅ Message envoyé en tant que ${target.tag}`, ephemeral: true });
-            }
-          } catch (e) {
-            await interaction.reply({ content: '❌ Impossible de créer le webhook.', ephemeral: true });
-          }
-          break;
-        }
-
-        case 'tts': {
-          const ttsText = interaction.options.getString('message');
-          if (!ttsText) {
-            await this.safeEphemeralReply(interaction, '❌ Message requis.');
-            return;
-          }
-
-          try {
-            await this.sendAsSelfbot(interaction, ttsText, { tts: true });
-          } catch (err) {
-            logger.error('DiscordManager', '/tts selfbot failed', err);
-            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le TTS via le compte utilisateur.');
-          }
-          break;
-        }
-
-        case 'mock': {
-          const text = interaction.options.getString('texte');
-          if (!text) {
-            await interaction.reply({ content: '❌ Texte requis.', ephemeral: true });
-            return;
-          }
-          let mocked = '';
-          for (let i = 0; i < text.length; i++) {
-            mocked += i % 2 === 0 ? text[i].toLowerCase() : text[i].toUpperCase();
-          }
-          await this.stealthReply(interaction, mocked);
-          break;
-        }
-
-        case 'ascii': {
-          const text = interaction.options.getString('texte')?.toUpperCase();
-          if (!text || text.length > 10) {
-            await interaction.reply({ content: '❌ Texte requis (max 10 caractères).', ephemeral: true });
-            return;
-          }
-
-          let result = '';
-          for (const char of text) {
-            if (asciiMap[char]) result += asciiMap[char] + '\n\n';
-          }
-
-          if (result.length > 1900) {
-            await interaction.reply({ content: '❌ Résultat trop long.', ephemeral: true });
-            return;
-          }
-
-          await this.stealthReply(interaction, '```\n' + result + '\n```');
-          break;
-        }
-
-        case 'avatar': {
-          const target = interaction.options.getUser('cible') || interaction.user;
-          const embed = new EmbedBuilder()
-            .setTitle(`🖼️ Avatar de ${target.tag}`)
-            .setImage(target.displayAvatarURL({ size: 4096 }))
-            .setColor(0x5865F2);
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          break;
-        }
-
-        case 'userinfo': {
-          const target = interaction.options.getUser('cible') || interaction.user;
-          const member = interaction.guild?.members.cache.get(target.id);
-
-          const embed = new EmbedBuilder()
-            .setTitle(`👤 ${target.tag}`)
-            .setThumbnail(target.displayAvatarURL())
-            .addFields(
-              { name: 'ID', value: target.id, inline: true },
-              { name: 'Créé le', value: `<t:${Math.floor(target.createdTimestamp / 1000)}:R>`, inline: true },
-              { name: 'Bot', value: target.bot ? 'Oui' : 'Non', inline: true }
-            )
-            .setColor(0x5865F2);
-
-          if (member) {
-            embed.addFields(
-              { name: 'Rejoint le', value: `<t:${Math.floor((member.joinedTimestamp || 0) / 1000)}:R>`, inline: true },
-              { name: 'Rôles', value: `${member.roles.cache.size - 1} rôles`, inline: true }
-            );
-          }
-
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          break;
-        }
-
-        case 'serverinfo': {
-          const targetGuildId = interaction.options.getString('guild_id') || interaction.guildId;
-          if (!targetGuildId) {
-            await interaction.reply({ content: '❌ ID du serveur (guild_id) requis en DM.', ephemeral: true });
-            return;
-          }
-
-          const guild = interaction.client.guilds.cache.get(targetGuildId);
-          if (!guild) {
-            await interaction.reply({ content: '❌ Serveur introuvable dans le cache.', ephemeral: true });
-            return;
-          }
-
-          const embed = new EmbedBuilder()
-            .setTitle(`🏰 ${guild.name}`)
-            .setThumbnail(guild.iconURL())
-            .addFields(
-              { name: 'ID', value: guild.id, inline: true },
-              { name: 'Membres', value: `${guild.memberCount}`, inline: true },
-              { name: 'Créé le', value: `<t:${Math.floor(guild.createdTimestamp / 1000)}:R>`, inline: true },
-              { name: 'Propriétaire', value: `<@${guild.ownerId}>`, inline: true },
-              { name: 'Salons', value: `${guild.channels.cache.size}`, inline: true }
-            )
-            .setColor(0x5865F2);
-
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          break;
-        }
-
-        case 'autobump': {
-          const targetGuildId = interaction.options.getString('guild_id') || interaction.guildId;
-          const targetChannelId = interaction.options.getString('channel_id') || interaction.channelId;
-
-          if (!targetGuildId || !targetChannelId) {
-            await interaction.reply({ content: '❌ ID de serveur (guild_id) et ID de salon (channel_id) requis en DM.', ephemeral: true });
-            return;
-          }
-
-          let interval = interaction.options.getInteger('interval') || 120;
-          let offset = interaction.options.getInteger('offset') || 0;
-
-          // Sécurité: intervalle minimum 60 minutes
-          if (interval < 60) {
-            await interaction.reply({
-              content: '⚠️ Intervalle minimum: 60 minutes. Utilisation de 120 minutes.',
-              ephemeral: true
-            });
-            interval = 120;
-          }
-
-          // Limite maximum 24h
-          if (interval > 1440) {
-            await interaction.reply({
-              content: '⚠️ Intervalle maximum: 24h (1440 minutes).',
-              ephemeral: true
-            });
-            interval = 1440;
-          }
-
-          const result = (global as any).eclipseCore?.autoSlashService?.enableBump(
-            targetGuildId,
-            targetChannelId,
-            interval,
-            offset
-          );
-
-          if (result && !result.success) {
-            await interaction.reply({
-              content: `❌ Erreur: ${result.error}`,
-              ephemeral: true
-            });
-            return;
-          }
-
-          const firstBumpTime = offset > 0 ? `dans ${offset} minutes` : `immédiatement`;
-          await interaction.reply({
-            content: `🔼 Bump auto activé ! Le premier bump s'effectuera ${firstBumpTime}. Ensuite, toutes les ${interval} minutes dans le salon cible.`,
-            ephemeral: true
-          });
-          break;
-        }
-
-        case 'stopbump': {
-          const targetGuildId = interaction.options.getString('guild_id') || interaction.guildId;
-          if (!targetGuildId) {
-            await interaction.reply({ content: '❌ ID du serveur (guild_id) requis en DM.', ephemeral: true });
-            return;
-          }
-
-          (global as any).eclipseCore?.autoSlashService?.disableBump(targetGuildId);
-          await interaction.reply({ content: '🔼 Bump auto désactivé sur le serveur cible.', ephemeral: true });
-          break;
-        }
-
-        case 'bumpstatus': {
-          const targetGuildId = interaction.options.getString('guild_id') || interaction.guildId;
-          if (!targetGuildId) {
-            await interaction.reply({ content: '❌ ID du serveur (guild_id) requis en DM.', ephemeral: true });
-            return;
-          }
-
-          const autoSlash = (global as any).eclipseCore?.autoSlashService;
-          const status = autoSlash?.getBumpStatus(targetGuildId);
-
-          if (!status || !status.enabled) {
-            await interaction.reply({ content: `🔼 Bump auto: Désactivé (pour le serveur ${targetGuildId})`, ephemeral: true });
-            return;
-          }
-
-          const timeLeft = autoSlash?.getTimeUntilBump(targetGuildId);
-          const formatted = autoSlash?.formatTimeRemaining(timeLeft);
-
-          await interaction.reply({
-            content: `🔼 **Bump Auto**\n✅ Activé\n📍 Salon: <#${status.channelId}>\n⏱️ Interval: ${status.interval / 60000} min\n🕐 Prochain bump: ${formatted}`,
-            ephemeral: true
-          });
-          break;
-        }
-
-        // Commandes Fun
-        case 'roll': {
-          const input = interaction.options.getString('dice') || '100';
-          let result: number;
-          let details = '';
-
-          if (input.includes('d')) {
-            const [count, sides] = input.split('d').map(Number);
-            if (count > 0 && sides > 0 && count <= 10) {
-              const rolls: number[] = [];
-              let total = 0;
-              for (let i = 0; i < count; i++) {
-                const roll = Math.floor(Math.random() * sides) + 1;
-                rolls.push(roll);
-                total += roll;
-              }
-              details = `[${rolls.join(', ')}] = `;
-              result = total;
-            } else {
-              result = Math.floor(Math.random() * 100) + 1;
-            }
-          } else {
-            const max = parseInt(input, 10) || 100;
-            result = Math.floor(Math.random() * max) + 1;
-          }
-
-          await this.stealthReply(interaction, `🎲 ${details}**${result}**`);
-          break;
-        }
-
-        case 'coinflip': {
-          const result = Math.random() < 0.5 ? '🪙 Pile' : '🪙 Face';
-          await this.stealthReply(interaction, result);
-          break;
-        }
-
-        case '8ball': {
-          const question = interaction.options.getString('question');
-          const answer = responses[Math.floor(Math.random() * responses.length)];
-          await this.stealthReply(interaction, `🎱 **Question:** ${question}\n**Réponse:** ${answer}`);
-          break;
-        }
-
-        case 'choose': {
-          const optionsText = interaction.options.getString('options');
-          const options = optionsText?.split('|').map(o => o.trim()).filter(o => o) || [];
-
-          if (options.length < 2) {
-            await interaction.reply({ content: '❌ Il faut au moins 2 options séparées par |', ephemeral: true });
-            return;
-          }
-
-          const choice = options[Math.floor(Math.random() * options.length)];
-          await this.stealthReply(interaction, `🤔 Je choisis: **${choice}**`);
-          break;
-        }
-
-        case 'love': {
-          const target = interaction.options.getUser('cible');
-          if (!target) {
-            await interaction.reply({ content: '❌ Cible requise.', ephemeral: true });
-            return;
-          }
-
-          const user1 = interaction.user;
-          const user2 = target;
-          const combined = user1.id.slice(-4) + user2.id.slice(-4);
-          const percentage = (parseInt(combined, 10) % 100) + 1;
-          const emoji = percentage > 80 ? '💕' : percentage > 50 ? '❤️' : percentage > 20 ? '💔' : '🖤';
-
-          await this.stealthReply(interaction, `${emoji} **${user1.username}** + **${user2.username}** = **${percentage}%** d'amour!`);
-          break;
-        }
-
-        case 'roast': {
-          const target = interaction.options.getUser('cible');
-          const roast = roasts[Math.floor(Math.random() * roasts.length)];
-
-          if (target) {
-            await this.stealthReply(interaction, `🔥 <@${target.id}>, ${roast}`);
-          } else {
-            await this.stealthReply(interaction, `🔥 ${roast}`);
-          }
-          break;
-        }
-
-        case 'compliment': {
-          const target = interaction.options.getUser('cible');
-          const compliment = compliments[Math.floor(Math.random() * compliments.length)];
-
-          if (target) {
-            await this.stealthReply(interaction, `💝 <@${target.id}>, ${compliment}`);
-          } else {
-            await this.stealthReply(interaction, `💝 ${compliment}`);
-          }
-          break;
-        }
-
-        case 'joke': {
-          const joke = jokes[Math.floor(Math.random() * jokes.length)];
-          await this.stealthReply(interaction, `😄 ${joke}`);
-          break;
-        }
-
-        case 'rate': {
-          const thing = interaction.options.getString('chose') || 'rien';
-          const rating = Math.floor(Math.random() * 11);
-          const bar = '█'.repeat(rating) + '░'.repeat(10 - rating);
-          await this.stealthReply(interaction, `📊 Je note **${thing}**:\n**${rating}/10**\n${bar}`);
-          break;
-        }
-
-        case 'ship': {
-          const user1 = interaction.options.getUser('user1');
-          const user2 = interaction.options.getUser('user2');
-
-          if (!user1 || !user2) {
-            await interaction.reply({ content: '❌ Deux utilisateurs requis.', ephemeral: true });
-            return;
-          }
-
-          const name1 = user1.username.slice(0, Math.ceil(user1.username.length / 2));
-          const name2 = user2.username.slice(Math.floor(user2.username.length / 2));
-          const shipName = name1 + name2;
-
-          const percentage = Math.floor(Math.random() * 100) + 1;
-          const hearts = percentage > 80 ? '💕💕💕' : percentage > 60 ? '💕💕' : percentage > 40 ? '💕' : '💔';
-
-          await this.stealthReply(interaction, `🚢 **${user1.username}** x **${user2.username}**\nNom du ship: **${shipName}**\nCompatibilité: **${percentage}%** ${hearts}`);
-          break;
-        }
-
-        case 'nighty': {
-          const text = interaction.options.getString('texte') || '';
-          const result = text.split('').map(char => smallCaps[char] || char).join('');
-          await this.stealthReply(interaction, result || '❌ Texte requis');
-          break;
-        }
-
-        case 'vaporwave': {
-          const text = interaction.options.getString('texte') || '';
-          const result = text.split('').map(char => fullwidth[char] || char).join('');
-          await this.stealthReply(interaction, result || '❌ Texte requis');
-          break;
-        }
-
-        case 'emojify': {
-          const text = (interaction.options.getString('texte') || '').toLowerCase();
-          const result = text.split('').map(char => emojiMap[char] || char).join(' ');
-          await this.stealthReply(interaction, result || '❌ Texte requis');
-          break;
-        }
-
-        case 'clap': {
-          const text = interaction.options.getString('texte') || '';
-          const result = text.split(' ').join(' 👏 ');
-          await this.stealthReply(interaction, `👏 ${result} 👏`);
-          break;
-        }
-
-        // Commandes Utilitaires
-        case 'calc': {
-          const expression = interaction.options.getString('expression') || '';
-          try {
-            const sanitized = expression.replace(/[^0-9+\-*/.()\s]/g, '');
-            if (sanitized !== expression.replace(/\s/g, '')) {
-              await interaction.reply({ content: '❌ Caractères non autorisés. Uniquement: 0-9 + - * / ( )', ephemeral: true });
-              return;
-            }
-            const result = new Function('return ' + sanitized)();
-            await this.stealthReply(interaction, `🧮 ${expression} = **${result}**`);
-          } catch {
-            await interaction.reply({ content: '❌ Expression invalide', ephemeral: true });
-          }
-          break;
-        }
-
-        case 'poll': {
-          const question = interaction.options.getString('question');
-          const option1 = interaction.options.getString('option1');
-          const option2 = interaction.options.getString('option2');
-          const option3 = interaction.options.getString('option3');
-          const option4 = interaction.options.getString('option4');
-
-          const options = [option1, option2, option3, option4].filter(o => o) as string[];
-          const emojis = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'];
-
-          let pollText = `📊 **${question}**\n\n`;
-          options.forEach((opt, i) => {
-            pollText += `${emojis[i]} ${opt}\n`;
-          });
-
-          const pollMsg = await interaction.reply({ content: pollText, fetchReply: true });
-
-          if (pollMsg && 'react' in pollMsg) {
-            for (let i = 0; i < options.length; i++) {
-              await pollMsg.react(emojis[i]).catch(() => { });
-            }
-          }
-          break;
-        }
-
-        case 'password': {
-          const length = interaction.options.getInteger('longueur') || 16;
-          const maxLength = Math.min(length, 64);
-          const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:,.<>?';
-          let password = '';
-          for (let i = 0; i < maxLength; i++) {
-            password += chars.charAt(Math.floor(Math.random() * chars.length));
-          }
-          await interaction.reply({ content: `🔐 Mot de passe généré (${maxLength} caractères):\n||${password}||`, ephemeral: true });
-          break;
-        }
-
-        case 'color': {
-          const input = interaction.options.getString('hex');
-          if (input) {
-            const hex = input.replace('#', '');
-            if (!/^[0-9A-Fa-f]{6}$/.test(hex)) {
-              await interaction.reply({ content: '❌ Format hex invalide. Exemple: `FF5733`', ephemeral: true });
-              return;
-            }
-            const r = parseInt(hex.substr(0, 2), 16);
-            const g = parseInt(hex.substr(2, 2), 16);
-            const b = parseInt(hex.substr(4, 2), 16);
-            await this.stealthReply(interaction, `🎨 Couleur #${hex.toUpperCase()}\nRGB: ${r}, ${g}, ${b}\nhttps://singlecolorimage.com/get/${hex}/100x100`);
-          } else {
-            const randomColor = Math.floor(Math.random() * 16777215).toString(16).padStart(6, '0');
-            const r = parseInt(randomColor.substr(0, 2), 16);
-            const g = parseInt(randomColor.substr(2, 2), 16);
-            const b = parseInt(randomColor.substr(4, 2), 16);
-            await this.stealthReply(interaction, `🎨 Couleur aléatoire: #${randomColor.toUpperCase()}\nRGB: ${r}, ${g}, ${b}\nhttps://singlecolorimage.com/get/${randomColor}/100x100`);
-          }
-          break;
-        }
-
-        // Commandes Troll — doivent toujours être envoyées par le selfbot
-        // (compte utilisateur) et non par l'App Bot.
-        case 'fuckyou': {
-          try {
-            const msg = await this.sendAsSelfbot(interaction, '┌─┐');
-            await new Promise(r => setTimeout(r, 800));
-            await msg.edit('┌─┐\n┴─┴').catch(() => { });
-            await new Promise(r => setTimeout(r, 800));
-            await msg.edit('┌─┐\n┴─┴\nಠ_ರೃ').catch(() => { });
-            await new Promise(r => setTimeout(r, 800));
-            await msg.edit('╭∩╮（︶︿︶）╭∩╮').catch(() => { });
-          } catch (err) {
-            logger.error('DiscordManager', '/fuckyou selfbot failed', err);
-            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le message via le compte utilisateur.');
-          }
-          break;
-        }
-
-        case 'fakevirus': {
-          try {
-            const msg = await this.sendAsSelfbot(interaction, '⚠️ **WARNING** ⚠️\nInjecting Trojan.Win32.Discord...');
-            await new Promise(r => setTimeout(r, 1500));
-            await msg.edit('⚙️ Executing exploit... [root@localhost]').catch(() => { });
-            await new Promise(r => setTimeout(r, 1500));
-            await msg.edit('📥 Downloading payloads... 45%').catch(() => { });
-            await new Promise(r => setTimeout(r, 1500));
-            await msg.edit('📥 Downloading payloads... 100%').catch(() => { });
-            await new Promise(r => setTimeout(r, 1500));
-            await msg.edit('✅ System compromised! IP logged.').catch(() => { });
-          } catch (err) {
-            logger.error('DiscordManager', '/fakevirus selfbot failed', err);
-            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le message via le compte utilisateur.');
-          }
-          break;
-        }
-
-        case 'hack': {
-          const target = interaction.options.getUser('cible');
-          if (!target) {
-            await this.safeEphemeralReply(interaction, '❌ Cible requise.');
-            return;
-          }
-
-          try {
-            const msg = await this.sendAsSelfbot(interaction, `🕵️ **HACKING ${target.username.toUpperCase()}...**`);
-
-            for (const step of steps) {
-              await new Promise(r => setTimeout(r, 1500));
-              await msg.edit(step).catch(() => { });
-            }
-
-            await new Promise(r => setTimeout(r, 1000));
-            await msg.edit(`🎉 **${target.username}** a été hacké avec succès!\n📧 Email: ${target.username.toLowerCase()}@hacked.com\n🔑 Password: ${'x'.repeat(10)}\n💰 Solde: 0.00$ (pauvre!)`).catch(() => { });
-          } catch (err) {
-            logger.error('DiscordManager', '/hack selfbot failed', err);
-            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le message via le compte utilisateur.');
-          }
-          break;
-        }
-
-        case 'disconnect': {
-          try {
-            await this.sendAsSelfbot(interaction, 'Déconnexion simulée...');
-          } catch (err) {
-            logger.error('DiscordManager', '/disconnect selfbot failed', err);
-            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer le message via le compte utilisateur.');
-          }
-          break;
-        }
-
-        case 'annoy': {
-          const target = interaction.options.getUser('cible');
-          const count = Math.min(interaction.options.getInteger('nombre') || 3, 5); // Max 5
-
-          if (!target) {
-            await this.safeEphemeralReply(interaction, '❌ Cible invalide.');
-            return;
-          }
-
-          try {
-            if (!interaction.deferred && !interaction.replied) {
-              await interaction.deferReply({ ephemeral: true });
-            }
-
-            if (!this.selfbot || !interaction.channelId) {
-              throw new Error('Selfbot non connecté');
-            }
-            const channel = await this.selfbot.channels.fetch(interaction.channelId);
-            if (!channel || !channel.isText()) {
-              throw new Error('Canal invalide');
-            }
-
-            for (let i = 0; i < count; i++) {
-              const msg = await (channel as any).send(`<@${target.id}> 👋`);
-              setTimeout(() => msg.delete().catch(() => { }), 500);
-              await new Promise(r => setTimeout(r, 800));
-            }
-
-            await interaction.deleteReply().catch(() => { });
-          } catch (err) {
-            logger.error('DiscordManager', '/annoy selfbot failed', err);
-            await this.safeEphemeralReply(interaction, '❌ Impossible d\'envoyer les messages via le compte utilisateur.');
-          }
-          break;
-        }
-
-        case 'deletesend': {
-          const target = interaction.options.getUser('cible');
-          if (!target) {
-            await interaction.reply({ content: '❌ Cible invalide.', ephemeral: true });
-            return;
-          }
-
-          if (target.id === this.selfbot?.user?.id) {
-            await interaction.reply({ content: '❌ Tu ne peux pas te cibler toi-même.', ephemeral: true });
-            return;
-          }
-
-          const isActive = this.trollService.isDeleteSendActive(target.id);
-
-          if (isActive) {
-            this.trollService.removeDeleteSend(target.id);
-            await interaction.reply({ content: `✅ Deletesend désactivé pour ${target.tag}.`, ephemeral: true });
-          } else {
-            this.trollService.addDeleteSend(target.id);
-            await interaction.reply({ content: `🗑️ Deletesend activé pour ${target.tag}. Ses messages seront supprimés automatiquement.`, ephemeral: true });
-          }
-          break;
-        }
-
-        case 'spy': {
-          const target = interaction.options.getUser('cible');
-          if (!target) {
-            await interaction.reply({ content: '❌ Cible invalide.', ephemeral: true });
-            return;
-          }
-
-          if (!interaction.guild) {
-            await interaction.reply({ content: '❌ Commande serveur uniquement.', ephemeral: true });
-            return;
-          }
-
-          const isSpying = this.spyService.isTargetActive(target.id, interaction.guild.id);
-
-          if (isSpying) {
-            this.spyService.removeTarget(target.id, interaction.guild.id);
-            await interaction.reply({ content: `👁️ Surveillance arrêtée pour ${target.tag}.`, ephemeral: true });
-          } else {
-            this.spyService.addTarget(target.id, interaction.guild.id);
-            await interaction.reply({ content: `👁️ Surveillance activée pour ${target.tag} dans ce serveur.`, ephemeral: true });
-          }
-          break;
-        }
-
-        case 'kick':
-        case 'ban':
-        case 'hackban':
-        case 'unban':
-        case 'slowmode':
-        case 'lock':
-        case 'unlock':
-        case 'nuke': {
-          await interaction.reply({
-            content: `⚠️ La commande "/${commandName}" est en cours de développement.`,
-            ephemeral: true
-          });
-          break;
-        }
-
-        // Image commands
-        case 'cat': {
-          await this.stealthReply(interaction,
-            `🐱 ${['https://cataas.com/cat', 'https://cataas.com/cat/gif'][Math.floor(Math.random() * 2)]}?t=${Date.now()}`
-          );
-          break;
-        }
-        case 'dog': {
-          const breeds = ['labrador', 'poodle', 'bulldog', 'beagle', 'pug', 'husky', 'corgi'];
-          const breed = breeds[Math.floor(Math.random() * breeds.length)];
-          await this.stealthReply(interaction, `🐕 https://placedog.net/500/400?${breed}&t=${Date.now()}`);
-          break;
-        }
-        case 'meme': {
-          const subreddits = ['memes', 'dankmemes', 'ProgrammerHumor', 'wholesomememes'];
-          const sub = subreddits[Math.floor(Math.random() * subreddits.length)];
-          await this.stealthReply(interaction, `🔥 Meme aléatoire de r/${sub}: https://www.reddit.com/r/${sub}/random`);
-          break;
-        }
-
-        // Voice commands
-        case 'joinvc': {
-          const vcChannel = interaction.options.getChannel('salon');
-          if (!vcChannel || vcChannel.type !== 2) {
-            await interaction.reply({ content: '❌ Salon vocal invalide.', ephemeral: true });
-            return;
-          }
-          try {
-            await (this.selfbot as any).voice?.joinChannel(vcChannel.id, { selfDeaf: true });
-            await interaction.reply({ content: `🔊 Rejoint ${vcChannel.name}`, ephemeral: true });
-          } catch (e) {
-            await interaction.reply({ content: '❌ Impossible de rejoindre le salon vocal.', ephemeral: true });
-          }
-          break;
-        }
-        case 'leavevc': {
-          try {
-            (this.selfbot as any).voice?.disconnect();
-            await interaction.reply({ content: '🔇 Salon vocal quitté.', ephemeral: true });
-          } catch (e) {
-            await interaction.reply({ content: '❌ Pas dans un salon vocal.', ephemeral: true });
-          }
-          break;
-        }
-
-        // Utility commands
-        case 'translate': {
-          const text = interaction.options.getString('texte') || '';
-          const lang = (interaction.options.getString('langue') || 'fr').slice(0, 2);
-          try {
-            const encoded = encodeURIComponent(text);
-            const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encoded}`;
-            const response = await fetch(url);
-            const data = await response.json() as any;
-            const translated = data?.[0]?.map((s: any) => s[0]).join('') || text;
-            await this.stealthReply(interaction, `🌐 **Traduit (→${lang})**: ${translated}`);
-          } catch (e) {
-            await interaction.reply({ content: '❌ Erreur de traduction.', ephemeral: true });
-          }
-          break;
-        }
-        case 'weather': {
-          const city = interaction.options.getString('ville') || 'Paris';
-          const encoded = encodeURIComponent(city);
-          const embed = new EmbedBuilder()
-            .setTitle(`🌤️ Météo: ${city}`)
-            .setDescription(`https://wttr.in/${encoded}_0pq_lang=fr.png?m`)
-            .setColor(0x5865F2);
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          break;
-        }
-        case 'qr': {
-          const text = interaction.options.getString('texte') || 'https://eclipse';
-          const encoded = encodeURIComponent(text);
-          const embed = new EmbedBuilder()
-            .setTitle('📱 QR Code')
-            .setImage(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encoded}`)
-            .setFooter({ text: text })
-            .setColor(0x5865F2);
-          await interaction.reply({ embeds: [embed], ephemeral: true });
-          break;
-        }
-
-        // Mod commands
-        case 'role': {
-          const target = interaction.options.getUser('cible');
-          const role = interaction.options.getRole('role');
-          if (!target || !role) {
-            await interaction.reply({ content: '❌ Arguments requis.', ephemeral: true });
-            return;
-          }
-          const member = interaction.guild?.members.cache.get(target.id);
-          if (!member) {
-            await interaction.reply({ content: '❌ Membre introuvable.', ephemeral: true });
-            return;
-          }
-          try {
-            if (member.roles.cache.has(role.id)) {
-              await (member.roles as any).remove(role);
-              await this.stealthReply(interaction, `🔓 Rôle ${role.name} retiré à ${target.username}`);
-            } else {
-              await (member.roles as any).add(role);
-              await this.stealthReply(interaction, `🔒 Rôle ${role.name} ajouté à ${target.username}`);
-            }
-          } catch (e) {
-            await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
-          }
-          break;
-        }
-        case 'purge': {
-          const purgeType = interaction.options.getString('type') || 'all';
-          const count = interaction.options.getInteger('count') || 50;
-          const channel = interaction.channel;
-          if (!channel?.isTextBased()) {
-            await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
-            return;
-          }
-          await interaction.deferReply({ ephemeral: true });
-          try {
-            const messages = await channel.messages.fetch({ limit: count });
-            let toDelete: any[] = [];
-            if (purgeType === 'all') {
-              toDelete = [...messages.values()];
-            } else if (purgeType === 'bots') {
-              toDelete = messages.filter((m: any) => m.author.bot).toJSON();
-            } else if (purgeType === 'embeds') {
-              toDelete = messages.filter((m: any) => m.embeds.length > 0).toJSON();
-            } else if (purgeType === 'images') {
-              toDelete = messages.filter((m: any) => m.attachments.size > 0).toJSON();
-            }
-            for (const msg of toDelete) {
-              await msg.delete().catch(() => {});
-              await new Promise(r => setTimeout(r, 200));
-            }
-            await interaction.editReply({ content: `✅ ${toDelete.length} messages supprimés (${purgeType}).` });
-          } catch (e) {
-            await interaction.editReply({ content: '❌ Erreur de purge.' });
-          }
-          break;
-        }
-
-        // Text commands
-        case 'reverse': {
-          const text = interaction.options.getString('texte') || '';
-          const reversed = text.split('').reverse().join('');
-          await this.stealthReply(interaction, `🔄 ${reversed}`);
-          break;
-        }
-        case 'uwu': {
-          const text = interaction.options.getString('texte') || '';
-          const uwuText = text
-            .replace(/r/g, 'w')
-            .replace(/l/g, 'w')
-            .replace(/R/g, 'W')
-            .replace(/L/g, 'W')
-            .replace(/n([aeiou])/g, 'ny$1')
-            .replace(/N([aeiou])/g, 'Ny$1')
-            .replace(/([!?])/g, ' $1 uwu');
-          await this.stealthReply(interaction, `🌸 ${uwuText}`);
-          break;
-        }
-
-        default: {
-          await interaction.reply({ content: '❌ Commande inconnue.', ephemeral: true });
-        }
-      }
+      await this.commandRegistry.dispatch(interaction, this.commandCtx);
     } catch (err) {
       logger.error('DiscordManager', `Erreur commande /${commandName}`, err);
-      const errorContent = { content: '❌ Une erreur est survenue.', ephemeral: true };
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(errorContent).catch(() => { });
-      } else {
-        await interaction.reply(errorContent).catch(() => { });
-      }
-    }
-  }
-
-  // ============================================================================
-  // CONTEXT MENU HANDLERS
-  // ============================================================================
-
-  private async handleUserContextMenu(interaction: Interaction): Promise<void> {
-    if (!interaction.isUserContextMenuCommand()) return;
-
-    const { commandName, targetUser } = interaction;
-    logger.info('DiscordManager', `Context Menu: ${commandName} → ${targetUser.tag}`);
-
-    try {
-      switch (commandName) {
-        case 'Ghostping': {
-          const channel = interaction.channel;
-          if (!channel || !('send' in channel)) {
-            await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
-            return;
-          }
-          const ghostMsg2 = await (channel as any).send(`${targetUser}`);
-          if (ghostMsg2) {
-            await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
-            await ghostMsg2.delete();
-            await interaction.reply({ content: `👻 Ghostping envoyé à ${targetUser.tag}`, ephemeral: true });
-          }
-          break;
-        }
-
-        case 'Spy User': {
-          if (!interaction.guild) {
-            await interaction.reply({ content: '❌ Commande serveur uniquement.', ephemeral: true });
-            return;
-          }
-
-          const isSpying = this.spyService.isTargetActive(targetUser.id, interaction.guild.id);
-          if (isSpying) {
-            this.spyService.removeTarget(targetUser.id, interaction.guild.id);
-            await interaction.reply({ content: `👁️ Surveillance arrêtée pour ${targetUser.tag}.`, ephemeral: true });
-          } else {
-            this.spyService.addTarget(targetUser.id, interaction.guild.id);
-            await interaction.reply({ content: `👁️ Surveillance activée pour ${targetUser.tag} dans ce serveur.`, ephemeral: true });
-          }
-          break;
-        }
-
-        default: {
-          await interaction.reply({ content: '❌ Action inconnue.', ephemeral: true });
-        }
-      }
-    } catch (err) {
-      logger.error('DiscordManager', `Erreur context menu ${commandName}`, err);
       const errorContent = { content: '❌ Une erreur est survenue.', ephemeral: true };
       if (interaction.replied || interaction.deferred) {
         await interaction.followUp(errorContent).catch(() => { });
@@ -1912,16 +625,7 @@ export class DiscordManager extends EventEmitter {
     // Ignorer les bots
     if (msg.author.bot) return;
 
-    // Commandes texte (prefix) - uniquement pour le propriétaire
-    if (this.selfbot && msg.author.id === this.selfbot.user?.id) {
-      // Vérifie si c'est une commande avec prefix
-      if (msg.content.startsWith(this.commandManager.prefix)) {
-        this.commandManager.handleMessage(this.selfbot, msg);
-        return;
-      }
-    }
-
-    // Ignore les messages de soi-même pour le reste
+    // Ignore les messages de soi-même
     if (!this.selfbot?.user || msg.author.id === this.selfbot.user.id) return;
 
     // AFK
@@ -2113,15 +817,15 @@ export class DiscordManager extends EventEmitter {
   // WEBSOCKET HELPERS
   // ============================================================================
 
-  private broadcastToClients(message: Record<string, unknown>): void {
+  public broadcastToClients(message: Record<string, unknown>): void {
     this.wsService.broadcast(message as any);
   }
 
-  private broadcastToast(title: string, content: string): void {
+  public broadcastToast(title: string, content: string): void {
     this.broadcastToClients({ type: 'toast', title, content });
   }
 
-  private broadcastNotification(action: string, content: string, title?: string): void {
+  public broadcastNotification(action: string, content: string, title?: string): void {
     this.broadcastToClients({ type: 'notification', action, content, title });
   }
 

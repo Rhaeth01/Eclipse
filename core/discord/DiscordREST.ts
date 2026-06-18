@@ -402,6 +402,11 @@ export class DiscordREST {
     return Array.isArray(data) ? data : [];
   }
 
+  /** Ajoute un ami (envoie une demande / accepte) via PUT /users/@me/relationships/:id. */
+  async addFriend(userId: string): Promise<void> {
+    await this.request("PUT", `/users/@me/relationships/${userId}`, {});
+  }
+
   async fetchChannels(): Promise<any[]> {
     const { data } = await this.request(
       "GET",

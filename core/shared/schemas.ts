@@ -125,6 +125,15 @@ export const GetRateLimitStatusSchema = z.object({
   type: z.literal('get_ratelimit_status')
 });
 
+export const GetCommandsSchema = z.object({
+  type: z.literal('get_commands')
+});
+
+export const CommandsListSchema = z.object({
+  type: z.literal('commands_list'),
+  data: z.any()
+});
+
 // Quest Schemas
 export const GetQuestsSchema = z.object({
   type: z.literal('get_quests')
@@ -306,6 +315,8 @@ export const WsMessageSchema = z.discriminatedUnion('type', [
   ClearRichPresenceSchema,
   CreateBackupSchema,
   GetRateLimitStatusSchema,
+  GetCommandsSchema,
+  CommandsListSchema,
   GetQuestsSchema,
   StartQuestSchema,
   StopQuestSchema,

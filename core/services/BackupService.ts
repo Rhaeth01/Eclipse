@@ -209,4 +209,51 @@ export class BackupService {
     fs.unlinkSync(filePath);
     return true;
   }
+
+  /**
+   * Restaure un backup sur le compte courant.
+   * - Réajoute les amis via REST (PUT /users/@me/relationships/:id).
+   * - Les serveurs NE peuvent PAS être rejoint sans invitation — ils sont
+   *   seulement listés comme manquants (retournés pour information).
+   * - Retourne un rapport { friendsAdded, friendsFailed, missingGuilds }.
+   *
+   * Note : les settings (stealth, silent, etc.) ne sont pas inclus dans
+   * BackupData v1.0 — ils seront restaurés quand le payload sera étendu.
+   */
+  async restoreBackup(
+    fileName: string,
+    client: DiscordUserClient
+  ): Promise<{ friendsAdded: number; friendsFailed: number; missingGuilds: Array<{ id: string; name: string }> }> {
+    const data = this.loadBackup(fileName);
+    const rest = client.getRest();
+
+    let friendsAdded = 0;
+    let friendsFailed = 0;
+
+    logger.info('Backup', `Restauration de ${data.friends.length} amis depuis ${fileName}...`);
+
+    for (const friend of data.friends) {
+      try {
+        await rest.addFriend(friend.id);
+        friendsAdded++;
+        await new Promise(r => setTimeout(r, 800 + Math.random() * 400));
+      } catch (err) {
+        friendsFailed++;
+        logger.warn('Backup', `Impossible de réajouter l'ami ${friend.username} (${friend.id})`, err);
+      }
+    }
+
+    // Guildes : on ne peut pas rejoindre sans invitation. On liste celles manquantes.
+    const currentGuildIds = new Set<string>();
+    try {
+      for (const g of client.guilds.cache.values()) currentGuildIds.add(g.id);
+    } catch {
+      // cache indisponible
+    }
+    const missingGuilds = data.guilds.filter(g => !currentGuildIds.has(g.id));
+
+    logger.info('Backup', `Restauration terminée: ${friendsAdded} amis ajoutés, ${missingGuilds.length} serveurs manquants.`);
+
+    return { friendsAdded, friendsFailed, missingGuilds };
+  }
 }

@@ -13,10 +13,16 @@ import { StateService } from './services/StateService';
 import { QuestService } from './services/QuestService';
 import { SniperService } from './services/SniperService';
 import { AutoSlashService } from './services/AutoSlashService';
+import { CloneService } from './services/CloneService';
+import { ScriptService } from './services/ScriptService';
+import { SpotifyService } from './services/SpotifyService';
 import { DiscordManager } from './discord/DiscordManager';
 import { MessageHandler, MessageHandlerContext } from './handlers/MessageHandler';
 import { BotSetupService } from './services/BotSetupService';
 import { logger } from './services/Logger';
+import { registerClone } from './commands/categories/clone';
+import { registerScript } from './commands/categories/script';
+import { registerSpotify } from './commands/categories/spotify';
 import type { WsMessage, InitMessage, ErrorMessage } from './shared/types';
 import * as path from 'path';
 
@@ -37,6 +43,9 @@ export class EclipseCore {
   private questService: QuestService;
   private sniperService: SniperService;
   private autoSlashService: AutoSlashService;
+  private cloneService: CloneService;
+  private scriptService: ScriptService;
+  private spotifyService: SpotifyService;
   private discordManager: DiscordManager;
   private messageHandler: MessageHandler;
   private botSetupService: BotSetupService;
@@ -87,6 +96,17 @@ export class EclipseCore {
     // AutoSlash Service
     this.autoSlashService = new AutoSlashService();
 
+    // Clone, Script, Spotify Services (Phase 3)
+    this.cloneService = new CloneService();
+    this.scriptService = new ScriptService();
+    this.spotifyService = new SpotifyService();
+
+    // Enregistre les catégories de commandes nécessitant ces services
+    const registry = this.discordManager.getCommandRegistry();
+    registerClone(registry, this.cloneService);
+    registerScript(registry, this.scriptService);
+    registerSpotify(registry, this.spotifyService);
+
     // Bot Setup Service
     this.botSetupService = new BotSetupService(this.wsService);
 
@@ -113,6 +133,31 @@ export class EclipseCore {
       }
     };
     this.messageHandler = new MessageHandler(context);
+
+    // Injecte le contexte complet des commandes dans DiscordManager
+    // (toutes les services sont maintenant créées)
+    this.discordManager.setCommandContext({
+      dm: this.discordManager,
+      spyService: this.spyService,
+      trollService: this.trollService,
+      sniperService: this.sniperService,
+      animationService: this.animationService,
+      questService: this.questService,
+      autoSlashService: this.autoSlashService,
+      backupService: this.backupService,
+      stateService: this.stateService,
+      dbService: this.dbService,
+      getCommandStealth: () => this.commandStealth,
+      setCommandStealth: (v) => {
+        this.commandStealth = v;
+        this.saveState();
+      },
+      getSilentTyping: () => this.silentTyping,
+      setSilentTyping: (v) => {
+        this.silentTyping = v;
+        this.saveState();
+      }
+    });
 
     this.setupEventHandlers();
     this.setupQuestHandlers();
@@ -233,6 +278,16 @@ export class EclipseCore {
       // Setup AutoSlash Service handlers
       this.setupAutoSlashHandlers();
 
+      // Setup Script Service context
+      this.scriptService.setContext({
+        send: async (channelId, content) => {
+          await this.discordManager.sendMessage(channelId, content);
+        },
+        log: (msg) => logger.info('Script', msg),
+        rest: this.discordManager.getRest(),
+        db: this.dbService,
+      });
+
       // Restaurer l'état précédent
       this.restoreState();
     });
@@ -294,6 +349,15 @@ export class EclipseCore {
       if (appId) {
         await this.botSetupService.runHybridSetup(clientId, appId);
       }
+      return;
+    }
+
+    // get_commands : renvoie le snapshot du registre (disponible sans connexion Discord)
+    if (message.type === 'get_commands') {
+      this.wsService.sendToClient(clientId, {
+        type: 'commands_list',
+        data: this.discordManager.getCommandRegistry().toJSON()
+      } as any);
       return;
     }
 
