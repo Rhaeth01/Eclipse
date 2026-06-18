@@ -16,7 +16,7 @@
   <img src="https://img.shields.io/badge/rust-1.96-DEA584?logo=rust" />
   <img src="https://img.shields.io/badge/node-22.19-339933?logo=nodedotjs" />
   <img src="https://img.shields.io/badge/license-Apache_2.0-blue" />
-  <img src="https://img.shields.io/badge/tests-69%20passed-2d9e8a?logo=vitest" />
+  <img src="https://img.shields.io/badge/tests-167%20passed-2d9e8a?logo=vitest" />
 </p>
 
 ---
@@ -53,7 +53,7 @@ Les outils de ce genre existent depuis des années, mais ils sont presque tous f
 
 ### Pour les utilisateurs
 
-1. Télécharge la dernière release : [Eclipse_0.4.3_x64-setup.exe](https://github.com/Rhaeth01/Eclipse/releases/latest)
+1. Télécharge la dernière release : [Eclipse_0.5.1_x64-setup.exe](https://github.com/Rhaeth01/Eclipse/releases/latest)
 2. Installe — **Node.js est inclus dans l'installeur, aucun prérequis**
 3. Lance Eclipse
 4. Le token de ton compte Discord est extrait automatiquement (Windows) — ou saisis-le manuellement (Linux/Mac)
@@ -168,12 +168,12 @@ aligné sur la structure `/help` de Nighty.
    ▼          ▼          ▼          ▼          ▼          ▼          ▼          ▼          ▼
 Discord    Animation  Database   TrollSvc   SniperSvc  BotSetup   Quest      Spy       AutoSlash
 Manager    Service    Service                          Service    Service    Service   + Backup
-   │
-   ├── DiscordUserClient (custom Gateway + REST)
-   │   ├── DiscordGateway (WebSocket gateway)
-   │   └── DiscordREST (HTTP + app creation API)
-   │
-   └── discord.js v14 (App Bot — 63+ slash commands)
+    │
+    ├── DiscordUserClient (custom Gateway + REST)
+    │   ├── DiscordGateway (WebSocket gateway)
+    │   └── DiscordREST (HTTP + app creation API)
+    │
+    └── CommandRegistry (single source of truth — 100+ slash + 4 context menus)
 ```
 
 **Stack technique :**
@@ -204,8 +204,8 @@ npm run dev:all
 npm run dev:linux
 
 # Tests
-npm test              # frontend + core (69 tests)
-cd core && npm test    # backend uniquement (41 tests)
+npm test              # frontend + core (167 tests)
+cd core && npm test    # backend uniquement (139 tests)
 
 # Lint
 npm run lint
@@ -230,14 +230,14 @@ Le dev Tauri complet nécessite Windows (DPAPI token extraction). Sous Linux :
 
 ## Tests
 
-**69 tests** au total, lancés via Vitest :
+**167 tests** au total (4 skipped), lancés via Vitest :
 
 ```
 npm test
 ```
 
 - **Frontend** (28 tests) : composants (SetupWizard), hooks (useWebSocket)
-- **Backend** (41 tests) : schemas Zod, EclipseCore, WebSocketService, BotSetupService, AutoSlashService, RateLimiter
+- **Backend** (139 tests) : CommandRegistry + dispatch, EclipseCore, WebSocketService, BotSetupService, AutoSlashService, RateLimiter, SniperService, SpyService, TrollService, BackupService.restore, CloneService, ScriptService, SpotifyService, schemas Zod
 
 Le build passe : `npm run build` + `npx tsc` (core) + `cargo check` (Rust).
 

@@ -9,6 +9,7 @@ export function registerTroll(registry: CommandRegistry): void {
       category: 'troll',
       name: 'mimic',
       description: 'Imite quelqu\'un avec webhook',
+      contexts: [0],
       build: s =>
         s
           .addUserOption(o => o.setName('cible').setDescription('Utilisateur à imiter').setRequired(true))
@@ -20,22 +21,25 @@ export function registerTroll(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ Arguments manquants.', ephemeral: true });
           return;
         }
+        const channel = interaction.channel;
+        if (!channel?.isTextBased()) {
+          await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
+          return;
+        }
+        await interaction.deferReply({ ephemeral: true });
         try {
-          const channel = interaction.channel;
-          if (channel?.isTextBased()) {
-            let targetChannel: any = channel;
-            let threadId: string | undefined;
-            if ((channel as any).isThread()) {
-              targetChannel = (channel as any).parent;
-              threadId = (channel as any).id;
-            }
-            const webhook = await targetChannel.createWebhook(target.username, { avatar: target.displayAvatarURL() });
-            await webhook.send({ content: mimicText, threadId });
-            await webhook.delete();
-            await interaction.reply({ content: `✅ Message envoyé en tant que ${target.tag}`, ephemeral: true });
+          let targetChannel: any = channel;
+          let threadId: string | undefined;
+          if ((channel as any).isThread()) {
+            targetChannel = (channel as any).parent;
+            threadId = (channel as any).id;
           }
+          const webhook = await targetChannel.createWebhook(target.username, { avatar: target.displayAvatarURL() });
+          await webhook.send({ content: mimicText, threadId });
+          await webhook.delete();
+          await interaction.editReply({ content: `✅ Message envoyé en tant que ${target.tag}` });
         } catch {
-          await interaction.reply({ content: '❌ Impossible de créer le webhook.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Impossible de créer le webhook.' }).catch(() => {});
         }
       },
     },

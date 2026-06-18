@@ -233,11 +233,12 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true });
         try {
           await channel.permissionOverwrites.edit(interaction.guild!.id, { SendMessages: false });
-          await interaction.reply({ content: '🔒 Salon verrouillé.', ephemeral: true });
+          await interaction.editReply({ content: '🔒 Salon verrouillé.' });
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },
@@ -252,11 +253,12 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true });
         try {
           await channel.permissionOverwrites.edit(interaction.guild!.id, { SendMessages: null });
-          await interaction.reply({ content: '🔓 Salon déverrouillé.', ephemeral: true });
+          await interaction.editReply({ content: '🔓 Salon déverrouillé.' });
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },
