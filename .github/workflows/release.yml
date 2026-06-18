@@ -78,22 +78,24 @@ jobs:
           Write-Host "Version: $version"
           Write-Host "Exe: $exePath"
 
-          # Le .sig minisign a 4 lignes :
+          # Le .sig produit par `tauri signer sign` est lui-meme un fichier
+          # base64 d'un texte minisign. Quand on le decode, on obtient 4 lignes :
           #   1: untrusted comment
           #   2: base64 signature   <-- ce qu'il faut dans le JSON
           #   3: trusted comment
           #   4: base64 trusted sig
           # Tauri updater attend UNIQUEMENT la base64 de la ligne 2 dans le champ
-          # `signature` de latest.json. Mettre le fichier complet (avec commentaires)
-          # provoque l'erreur "Invalid encoding in minisign data" cote client.
+          # `signature` de latest.json.
           $sigBase64 = ""
           if (Test-Path $sigPath) {
-            $sigLines = Get-Content $sigPath
+            $sigBase64Wrapper = (Get-Content $sigPath -Raw).Trim()
+            $decoded = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($sigBase64Wrapper))
+            $sigLines = $decoded -split "`n"
             if ($sigLines.Count -ge 2) {
               $sigBase64 = $sigLines[1].Trim()
-              Write-Host "Signature extraite (ligne 2): $($sigBase64.Substring(0, [Math]::Min(20, $sigBase64.Length)))... (longueur: $($sigBase64.Length))"
+              Write-Host "Signature extraite (ligne 2 du .sig decode): $($sigBase64.Substring(0, [Math]::Min(20, $sigBase64.Length)))... (longueur: $($sigBase64.Length))"
             } else {
-              Write-Host "ERREUR: .sig n'a que $($sigLines.Count) ligne(s), format inattendu"
+              Write-Host "ERREUR: .sig decode n'a que $($sigLines.Count) ligne(s), format inattendu"
               exit 1
             }
           } else {
