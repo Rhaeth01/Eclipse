@@ -82,7 +82,7 @@ npm run dev:all       # Frontend + Core + Tauri (Windows recommandé)
 - Custom status animé (texte + emoji)
 - Live preview fidèle au rendu Discord
 
-### 🤖 63+ commandes slash et contextuelles
+### 🤖 100+ commandes slash et contextuelles
 Voir la [liste complète](#commandes).
 
 ### 🎯 Quest auto-completion
@@ -119,19 +119,35 @@ Voir la [liste complète](#commandes).
 
 ## Commandes
 
+Le système de commandes est unifié dans un registre unique (`core/commands/`).
+Les commandes préfixées (`.`) ont été supprimées — Eclipse utilise désormais
+uniquement les slash commands modernes avec sous-commandes et autocompletion,
+aligné sur la structure `/help` de Nighty.
+
 | Catégorie | Commandes |
 |-----------|-----------|
-| **Fun** | `/roll`, `/coinflip`, `/8ball`, `/choose`, `/love`, `/roast`, `/compliment`, `/joke`, `/rate`, `/ship` |
-| **Image** | `/cat`, `/dog`, `/meme` |
-| **Texte** | `/mock`, `/ascii`, `/vaporwave`, `/emojify`, `/clap`, `/nighty`, `/reverse`, `/uwu` |
-| **Utilitaires** | `/translate`, `/weather`, `/qr`, `/calc`, `/poll`, `/password`, `/color`, `/help`, `/ping` |
-| **Infos** | `/avatar`, `/userinfo`, `/serverinfo` |
-| **Modération** | `/kick`, `/ban`, `/hackban`, `/unban`, `/slowmode`, `/lock`, `/unlock`, `/nuke`, `/role`, `/purge`, `/clear` |
-| **Espionnage** | `/ghostping`, `/spy`, `/snipe`, `/editsnipe`, `/deletesend`, `/typing` |
-| **Vocal** | `/joinvc`, `/leavevc`, `/tts` |
-| **Troll** | `/mimic`, `/annoy`, `/fuckyou`, `/fakevirus`, `/hack`, `/disconnect` |
-| **Auto** | `/autobump`, `/stopbump`, `/bumpstatus`, `/afk` |
-| **Context** | `Ghostping` (user), `Spy User` (user) |
+| **Basiques** | `/help`, `/ping` |
+| **Fun** | `/fun roll`, `/fun coinflip`, `/fun 8ball`, `/fun choose`, `/fun love`, `/fun roast`, `/fun compliment`, `/fun joke`, `/fun rate`, `/fun ship`, `/fun spam`, `/fun react` |
+| **Texte** | `/text mock`, `/text ascii`, `/text vaporwave`, `/text emojify`, `/text clap`, `/text nighty`, `/text reverse`, `/text uwu`, `/text shrug`, `/text tableflip`, `/text unflip`, `/text lenny` |
+| **Image** | `/image cat`, `/image dog`, `/image meme` |
+| **Admin** | `/admin clear`, `/admin purge`, `/admin role`, `/admin kick`, `/admin ban`, `/admin hackban`, `/admin unban`, `/admin slowmode`, `/admin lock`, `/admin unlock`, `/admin nuke` |
+| **Spy** | `/spy toggle`, `/spy list`, `/spy remove`, `/spy clear`, `/spy snipe`, `/spy editsnipe` |
+| **Voice** | `/voice joinvc`, `/voice leavevc`, `/voice tts` |
+| **Troll** | `/troll mimic`, `/troll annoy`, `/troll fuckyou`, `/troll fakevirus`, `/troll hack`, `/troll disconnect`, `/troll deletesend`, `/troll typing`, `/troll reactroll`, `/troll autoreply`, `/troll dmall` |
+| **Utils** | `/utils calc`, `/utils poll`, `/utils password`, `/utils color`, `/utils translate`, `/utils weather`, `/utils qr`, `/utils remind`, `/utils base64`, `/utils binary` |
+| **Info** | `/info userinfo`, `/info avatar`, `/info serverinfo`, `/info stats` |
+| **Misc** | `/misc afk`, `/misc ghostping`, `/misc uptime` |
+| **Animated** | `/animated status start`, `/animated status stop`, `/animated rpc start`, `/animated rpc stop`, `/animated rpc set`, `/animated rpc clear` |
+| **Recovery** | `/recovery backup create`, `/recovery backup list`, `/recovery backup load`, `/recovery backup delete` |
+| **Quest** | `/quest list`, `/quest fetch`, `/quest start`, `/quest stop`, `/quest claim`, `/quest mock` |
+| **AutoSlash** | `/autoslash bump enable`, `/autoslash bump disable`, `/autoslash bump status`, `/autoslash bump list` |
+| **Sniper** | `/sniper toggle`, `/sniper status`, `/sniper whitelist` |
+| **Settings** | `/settings stealth`, `/settings silent`, `/settings deploy`, `/settings status` |
+| **Clone** | `/clone server` |
+| **Script** | `/script list`, `/script load`, `/script run`, `/script unload`, `/script watch` |
+| **Spotify** | `/spotify nowplaying`, `/spotify pause`, `/spotify resume`, `/spotify skip`, `/spotify status` |
+| **Notify** | `/notify test`, `/notify webhook`, `/notify status` |
+| **Context** | `Ghostping` (user), `Spy User` (user), `Translate` (message), `Copy Raw` (message) |
 
 ---
 
