@@ -1,6 +1,8 @@
 /**
  * Types WebSocket partagés (Frontend)
- * Mirror de core/shared/types.ts
+ * Mirror de core/shared/types.ts — gardé en sync manuellement.
+ * Pour ajouter un message : modifier core/shared/types.ts ET core/shared/schemas.ts,
+ * puis reproduire ici. Vérifier que core/shared/__tests__/schemas.test.ts passe.
  */
 
 // ============================================================================
@@ -9,8 +11,8 @@
 
 export type WsMessageType =
   // Connection & Auth
-  | 'init' | 'discord_ready' | 'error'
-  // Status & Notifications  
+  | 'init' | 'discord_ready' | 'error' | 'auth'
+  // Status & Notifications
   | 'status' | 'toast' | 'notification'
   // Settings
   | 'set_stealth_mode' | 'set_silent_typing'
@@ -20,9 +22,16 @@ export type WsMessageType =
   // Backup
   | 'create_backup' | 'backup_success'
   // Commands
-  | 'command_used'
+  | 'command_used' | 'get_commands' | 'commands_list'
   // Logs
   | 'core_log'
+  // Status queries
+  | 'get_ratelimit_status'
+  // Sniper
+  | 'update_sniper_config'
+  // Quests
+  | 'get_quests' | 'start_quest' | 'stop_quest' | 'claim_quest_reward' | 'create_mock_quests'
+  | 'quests_update' | 'quest_progress' | 'quest_status'
   // Autobump
   | 'enable_autobump' | 'disable_autobump' | 'get_autobump_status' | 'autobump_status'
   // Bot token management
@@ -43,6 +52,11 @@ export interface InitMessage extends WsBaseMessage {
   type: 'init';
   token: string;
   appToken?: string;
+}
+
+export interface WsAuthMessage extends WsBaseMessage {
+  type: 'auth';
+  secret: string;
 }
 
 export interface SetStealthModeMessage extends WsBaseMessage {
@@ -97,6 +111,14 @@ export interface CreateBackupMessage extends WsBaseMessage {
   type: 'create_backup';
 }
 
+export interface GetRateLimitStatusMessage extends WsBaseMessage {
+  type: 'get_ratelimit_status';
+}
+
+export interface GetCommandsMessage extends WsBaseMessage {
+  type: 'get_commands';
+}
+
 // ============================================================================
 // CORE -> CLIENT MESSAGES
 // ============================================================================
@@ -135,6 +157,30 @@ export interface BackupSuccessMessage extends WsBaseMessage {
   action: 'backup_success';
   title: string;
   content: string;
+}
+
+export interface CommandsListMessage extends WsBaseMessage {
+  type: 'commands_list';
+  data: unknown;
+}
+
+export interface QuestsUpdateMessage extends WsBaseMessage {
+  type: 'quests_update';
+  quests: QuestInfo[];
+}
+
+export interface QuestProgressMessage extends WsBaseMessage {
+  type: 'quest_progress';
+  questId: string;
+  current: number;
+  target: number;
+  percent: number;
+}
+
+export interface QuestStatusMessage extends WsBaseMessage {
+  type: 'quest_status';
+  questId: string;
+  status: 'running' | 'stopped' | 'completed' | 'claimed';
 }
 
 export interface CoreLogMessage extends WsBaseMessage {
@@ -179,6 +225,41 @@ export interface AutobumpStatusMessage extends WsBaseMessage {
 export interface SaveBotTokenMessage extends WsBaseMessage {
   type: 'save_bot_token';
   appToken: string;
+}
+
+export interface UpdateSniperConfigMessage extends WsBaseMessage {
+  type: 'update_sniper_config';
+  config: {
+    nitroSniper?: boolean;
+    giveawayJoiner?: boolean;
+    blockDetection?: boolean;
+    pingDetection?: boolean;
+    whitelistUsers?: string[];
+    blacklistGuilds?: string[];
+  };
+}
+
+export interface GetQuestsMessage extends WsBaseMessage {
+  type: 'get_quests';
+}
+
+export interface StartQuestMessage extends WsBaseMessage {
+  type: 'start_quest';
+  questId: string;
+}
+
+export interface StopQuestMessage extends WsBaseMessage {
+  type: 'stop_quest';
+  questId: string;
+}
+
+export interface ClaimQuestRewardMessage extends WsBaseMessage {
+  type: 'claim_quest_reward';
+  questId: string;
+}
+
+export interface CreateMockQuestsMessage extends WsBaseMessage {
+  type: 'create_mock_quests';
 }
 
 export interface BotTokenSavedMessage extends WsBaseMessage {
@@ -244,6 +325,32 @@ export interface RpcFrame {
   endTimestamp?: number;
 }
 
+export interface QuestInfo {
+  id: string;
+  title: string;
+  description: string;
+  type: 'VIDEO' | 'PLAY' | 'STREAM' | 'PLAY_ACTIVITY';
+  targetGame?: {
+    id: string;
+    name: string;
+    executables: string[];
+  };
+  targetVideo?: {
+    id: string;
+    durationSeconds: number;
+  };
+  reward: {
+    type: 'NITRO' | 'ORBS' | 'DECORATION' | 'BADGE';
+    name: string;
+  };
+  expiresAt: string;
+  progress: {
+    current: number;
+    target: number;
+    completed: boolean;
+  };
+}
+
 export type NotificationAction =
   | 'friend_removed_offline' | 'guild_removed_offline'
   | 'role_add' | 'role_remove'
@@ -257,7 +364,9 @@ export type NotificationAction =
 // ============================================================================
 
 export type WsMessage =
+  // Client -> Core
   | InitMessage
+  | WsAuthMessage
   | SetStealthModeMessage
   | SetSilentTypingMessage
   | StartAnimationMessage
@@ -267,19 +376,31 @@ export type WsMessage =
   | SetRichPresenceMessage
   | ClearRichPresenceMessage
   | CreateBackupMessage
+  | GetRateLimitStatusMessage
+  | GetCommandsMessage
+  | UpdateSniperConfigMessage
+  | GetQuestsMessage
+  | StartQuestMessage
+  | StopQuestMessage
+  | ClaimQuestRewardMessage
+  | CreateMockQuestsMessage
+  | EnableAutobumpMessage
+  | DisableAutobumpMessage
+  | GetAutobumpStatusMessage
+  | SaveBotTokenMessage
+  | AutoSetupBotMessage
+  | HybridSetupBotMessage
+  // Core -> Client
   | DiscordReadyMessage
   | StatusMessage
   | ToastMessage
   | NotificationMessage
   | ErrorMessage
   | BackupSuccessMessage
+  | CommandsListMessage
+  | QuestsUpdateMessage
+  | QuestProgressMessage
+  | QuestStatusMessage
   | CoreLogMessage
-  | EnableAutobumpMessage
-  | DisableAutobumpMessage
-  | GetAutobumpStatusMessage
-  | AutobumpStatusMessage
-  | SaveBotTokenMessage
   | BotTokenSavedMessage
-  | AutoSetupBotMessage
-  | HybridSetupBotMessage
   | SetupProgressMessage;
