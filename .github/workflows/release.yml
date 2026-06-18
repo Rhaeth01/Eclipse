@@ -43,6 +43,29 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
         run: npx tauri build
 
+      # En Tauri v2, `tauri build` ne signe PLUS automatiquement le bundle — il faut
+      # appeler `tauri signer sign` separement avec la cle privee. Si on ne le fait
+      # pas, latest.json contient "signature": "" et l'auto-update echoue cote
+      # client avec "Invalid encoding in minisign data".
+      - name: Sign the bundle
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+        shell: pwsh
+        run: |
+          $version = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          $exeName = "Eclipse_$($version)_x64-setup.exe"
+          $exePath = "src-tauri/target/release/bundle/nsis/$exeName"
+          $sigPath = "$exePath.sig"
+          Write-Host "Signature du bundle $exePath avec TAURI_SIGNING_PRIVATE_KEY..."
+          npx tauri signer sign "$exePath"
+          if (Test-Path $sigPath) {
+            Write-Host "Signature generee: $sigPath"
+            Get-Content $sigPath
+          } else {
+            Write-Host "ERREUR: tauri signer sign n'a pas cree le .sig"
+            exit 1
+          }
+
       - name: Sign and generate latest.json
         shell: pwsh
         run: |
@@ -69,14 +92,17 @@ jobs:
               $sigBase64 = $sigLines[1].Trim()
               Write-Host "Signature extraite (ligne 2): $($sigBase64.Substring(0, [Math]::Min(20, $sigBase64.Length)))... (longueur: $($sigBase64.Length))"
             } else {
-              Write-Host "ATTENTION: .sig n'a que $($sigLines.Count) ligne(s), format inattendu"
+              Write-Host "ERREUR: .sig n'a que $($sigLines.Count) ligne(s), format inattendu"
+              exit 1
             }
           } else {
-            Write-Host "ATTENTION: Pas de fichier .sig, latest.json aura une signature vide (l'auto-update echouera)"
+            Write-Host "ERREUR: Pas de fichier .sig apres signature, latest.json aurait une signature vide"
+            exit 1
           }
 
           if ([string]::IsNullOrWhiteSpace($sigBase64)) {
-            Write-Host "ERREUR: signature vide — l'auto-updater Tauri refusera l'install. Verifie que TAURI_SIGNING_PRIVATE_KEY est bien defini dans les secrets."
+            Write-Host "ERREUR: signature vide — l'auto-updater Tauri refusera l'install"
+            exit 1
           }
 
           $pubDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
