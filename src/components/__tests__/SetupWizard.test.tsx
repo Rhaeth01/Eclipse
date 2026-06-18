@@ -216,7 +216,7 @@ describe('SetupWizard', () => {
 
     it('shows confirmation message', async () => {
       expect(await screen.findByText('Configuration terminée !')).toBeInTheDocument();
-      const gridItems = screen.getAllByText(/\/ghostping|\/spy|44\+ commandes/);
+      const gridItems = screen.getAllByText(/\/ghostping|\/spy|100\+ commandes/);
       expect(gridItems.length).toBeGreaterThanOrEqual(3);
     });
 

@@ -6,3 +6,4 @@ export { useWebSocket, type ConnectionStatus, type LogEntry } from './useWebSock
 export { useAnimation, type UseAnimationReturn } from './useAnimation';
 export { useRichPresence, type RpcFormState, type UseRichPresenceReturn } from './useRichPresence';
 export { useQuests, type UseQuestsReturn } from './useQuests';
+export { useCommands, type UseCommandsReturn, type CommandsSnapshot } from './useCommands';

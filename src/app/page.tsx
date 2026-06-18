@@ -11,7 +11,7 @@ import {
   Play, Square, Plus, X,
   Clock, MessageSquare, Download,
   Radio, AlertTriangle, Image, Link, Type, Gamepad2,
-  Gift, Target, Bell, Command, Clipboard
+  Gift, Target, Bell, Command, Clipboard, ListTree
 } from 'lucide-react';
 import { Toaster, toast } from 'sonner';
 
@@ -20,8 +20,9 @@ import { GlowButton } from '@/components/ui/GlowButton';
 import { Console, LogEntry } from '@/components/ui/Console';
 import { ConnectionStatus } from '@/components/ui/ConnectionStatus';
 import { SetupWizard } from '@/components/SetupWizard';
+import { CommandsListPanel } from '@/components/CommandsListPanel';
 
-import { useWebSocket, useAnimation, useRichPresence } from '@/hooks';
+import { useWebSocket, useAnimation, useRichPresence, useCommands } from '@/hooks';
 import { useUpdater } from '@/hooks/useUpdater';
 import { updateWindowState } from '@/lib/notification';
 import { ActivityType } from '@/lib/websocket/types';
@@ -50,6 +51,7 @@ export default function Home() {
   const { status, isDiscordConnected, user, logs, clearLogs, connect } = wsHook;
   const animation = useAnimation({ wsHook });
   const richPresence = useRichPresence({ wsHook });
+  const commands = useCommands({ wsHook });
   const updater = useUpdater();
 
   const [appToken, setAppToken] = useState('');
@@ -1038,6 +1040,18 @@ export default function Home() {
                     </div>
                   </GlassCard>
 
+                  <GlassCard className="p-5" hover={false}>
+                    <h3 className="text-base font-semibold mb-4 flex items-center gap-2 text-[#e69a00]">
+                      <ListTree className="w-4 h-4" />
+                      Commandes exposées
+                    </h3>
+                    <CommandsListPanel
+                      snapshot={commands.snapshot}
+                      isLoading={commands.isLoading}
+                      onRefresh={commands.refreshCommands}
+                    />
+                  </GlassCard>
+
                   <GlassCard glow="coral" className="p-5" hover={false}>
                     <h3 className="text-base font-semibold mb-5 flex items-center gap-2 text-[#d4656b]">
                       <AlertTriangle className="w-4 h-4" />
@@ -1086,6 +1100,7 @@ export default function Home() {
         }}
         setupProgress={setupProgress}
         appTokenConfigured={appTokenConfigured}
+        commandCount={commands.commandCount}
       />
 
       {/* Update notification */}

@@ -29,6 +29,8 @@ interface SetupWizardProps {
   onOpenPortal?: () => void;
   onAutoSetup?: () => void;
   setupProgress?: SetupProgress | null;
+  /** Nombre de commandes slash exposées (live depuis CommandRegistry.toJSON). null = pas encore chargé. */
+  commandCount?: number | null;
 }
 
 const STEPS: { id: WizardStep; label: string }[] = [
@@ -62,7 +64,8 @@ export function SetupWizard({
   appTokenConfigured,
   onOpenPortal,
   onAutoSetup,
-  setupProgress
+  setupProgress,
+  commandCount
 }: SetupWizardProps) {
   const [step, setStep] = useState<WizardStep>('welcome');
   const [token, setToken] = useState('');
@@ -707,7 +710,7 @@ export function SetupWizard({
                     { icon: Zap, label: '/ghostping', color: '#e69a00' },
                     { icon: Command, label: '/spy', color: '#8b9dc3' },
                     { icon: Bot, label: '/help', color: '#2d9e8a' },
-                    { icon: Sparkles, label: '44+ commandes', color: '#9b83cb' },
+                    { icon: Sparkles, label: commandCount != null ? `${commandCount} commandes` : '100+ commandes', color: '#9b83cb' },
                   ].map(({ icon: Icon, label, color }) => (
                     <div
                       key={label}
