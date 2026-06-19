@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import {
@@ -692,9 +693,14 @@ export function SetupWizard({
                   transition={{ type: 'spring', bounce: 0.5, delay: 0.1 }}
                   className="inline-flex mb-6"
                 >
-                  <div className="w-16 h-16 rounded-full bg-[#2d9e8a]/10 border border-[#2d9e8a]/20 flex items-center justify-center">
-                    <CheckCircle className="w-8 h-8 text-[#2d9e8a]" />
-                  </div>
+                  <Image
+                    src="/wordmark.png"
+                    alt="Eclipse"
+                    width={240}
+                    height={63}
+                    priority
+                    className="w-60 h-auto"
+                  />
                 </motion.div>
 
                 <h2 className="text-xl font-bold text-[#e8e6e3] mb-3">

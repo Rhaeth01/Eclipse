@@ -21,9 +21,13 @@ export function TitleBar() {
             style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
         >
             <div data-tauri-drag-region className="flex items-center gap-2 pl-3 h-full cursor-default w-full">
-                <div className="w-4 h-4 rounded-full bg-[#e69a00]/20 flex items-center justify-center overflow-hidden">
-                    <Image src="/icon.png" alt="Eclipse" width={16} height={16} />
-                </div>
+                <Image
+                    src="/icon.png"
+                    alt="Eclipse"
+                    width={16}
+                    height={16}
+                    className="w-4 h-4"
+                />
                 <span data-tauri-drag-region className="text-[11px] font-medium text-[#7a7671] tracking-wider uppercase mt-[1px]">
                     Eclipse
                 </span>

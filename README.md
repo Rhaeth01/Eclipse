@@ -1,6 +1,12 @@
 # Eclipse
 
-> Discord toolkit libre, open source et gratuit — parce que les outils puissants ne devraient pas être cachés derrière un paywall.
+<p align="center">
+  <img src="assets/branding/eclipse_wordmark_transparent_cropped.png" alt="Eclipse" width="480" />
+</p>
+
+<p align="center">
+  <em>Discord toolkit libre, open source et gratuit — parce que les outils puissants ne devraient pas être cachés derrière un paywall.</em>
+</p>
 
 <p align="center">
   <a href="https://github.com/Rhaeth01/Eclipse/releases/latest"><img src="https://img.shields.io/github/v/tag/Rhaeth01/Eclipse?label=release&color=e69a00" /></a>

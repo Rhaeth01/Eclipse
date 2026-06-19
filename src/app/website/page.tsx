@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { Shield, Eye, Users, Zap, Ban, Database } from 'lucide-react';
 
@@ -25,9 +26,14 @@ export default function WebsitePage() {
                         v0.1.0 Beta
                     </div>
 
-                    <h1 className="text-5xl font-bold tracking-tight leading-tight mb-4">
-                        Eclipse
-                    </h1>
+                    <Image
+                        src="/wordmark.png"
+                        alt="Eclipse"
+                        width={480}
+                        height={125}
+                        priority
+                        className="w-[28rem] max-w-full h-auto mb-6"
+                    />
                     <p className="text-lg text-[#7a7671] mb-8 max-w-md mx-auto leading-relaxed">
                         Le toolkit Discord avancé. Rich Presence, animations, automatisation, le tout avec une âme.
                     </p>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import NextImage from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import { invoke } from '@tauri-apps/api/core';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -280,12 +281,14 @@ export default function Home() {
                 transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
                 className="inline-flex mb-6"
               >
-                <div className="w-20 h-20 rounded-full bg-[#1a1a1e] border border-white/[0.06] flex items-center justify-center">
-                  <div className="w-12 h-12 rounded-full bg-[#070709] border-2 border-[#e69a00]/20 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-[#e69a00]/8 to-transparent" />
-                    <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-8 h-[2px] bg-[#e69a00]/30 rounded-full" />
-                  </div>
-                </div>
+                <NextImage
+                  src="/icon.png"
+                  alt="Eclipse"
+                  width={80}
+                  height={80}
+                  className="w-20 h-20"
+                  priority
+                />
               </motion.div>
               <h1 className="text-[2.25rem] font-bold text-[#e8e6e3] tracking-[0.02em] leading-none">
                 Eclipse
@@ -409,9 +412,13 @@ export default function Home() {
         {/* Sidebar */}
         <aside className="w-56 shrink-0 border-r border-white/[0.05] bg-[#0a0a0d] flex flex-col">
           <div className="flex items-center gap-2.5 px-4 py-4">
-            <div className="w-7 h-7 rounded-lg bg-[#1e1e22] border border-white/[0.05] flex items-center justify-center overflow-hidden">
-              <div className="w-4 h-4 rounded-sm bg-[#070709] border border-[#e69a00]/20" />
-            </div>
+            <NextImage
+              src="/icon.png"
+              alt="Eclipse"
+              width={28}
+              height={28}
+              className="w-7 h-7"
+            />
             <span className="text-base font-semibold tracking-tight">Eclipse</span>
           </div>
 
