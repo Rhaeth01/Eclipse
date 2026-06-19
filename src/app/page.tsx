@@ -284,24 +284,15 @@ export default function Home() {
         >
           <GlassCard className="p-10">
             <div className="text-center mb-10">
-              <motion.div
-                animate={{ rotate: [0, 360] }}
-                transition={{ duration: 40, repeat: Infinity, ease: 'linear' }}
-                className="inline-flex mb-6"
-              >
-                <NextImage
-                  src="/icon.png"
-                  alt="Eclipse"
-                  width={80}
-                  height={80}
-                  className="w-20 h-20"
-                  priority
-                />
-              </motion.div>
-              <h1 className="text-[2.25rem] font-bold text-[#e8e6e3] tracking-[0.02em] leading-none">
-                Eclipse
-              </h1>
-              <div className="flex items-center justify-center gap-3 mt-3">
+              <NextImage
+                src="/wordmark.png"
+                alt="Eclipse"
+                width={360}
+                height={94}
+                className="w-[22rem] max-w-full h-auto mx-auto"
+                priority
+              />
+              <div className="flex items-center justify-center gap-3 mt-5">
                 <span className="h-px w-6 bg-white/[0.08]" />
                 <p className="text-[#7a7671] text-sm font-medium tracking-wider uppercase">Discord Toolkit</p>
                 <span className="h-px w-6 bg-white/[0.08]" />
