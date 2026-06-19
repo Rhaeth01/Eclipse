@@ -28,10 +28,17 @@ export function showNotification(message: NotificationMessage): void {
   const title = message.title || getDefaultTitle(message.action);
   const body = message.content;
 
+  // Note : pas de champ `icon` ici. Le chemin `tauri://assets/icon.png`
+  // precedemment utilise n'est PAS un filesystem path valide pour
+  // tauri-plugin-notification (c'est un protocole IPC). Le mettre faisait
+  // silencieusement echouer sendNotification sur Windows. On laisse Windows
+  // utiliser l'icone de l'AUMID enregistre pour l'app installee.
+  // Note 2 : sendNotification est fire-and-forget (retourne void en Tauri v2),
+  // donc on ne peut pas await/catch. Les erreurs internes sont silencieuses
+  // par design du plugin.
   sendNotification({
     title,
     body: body.length > 200 ? body.substring(0, 200) + '...' : body,
-    icon: 'tauri://assets/icon.png'
   });
 }
 

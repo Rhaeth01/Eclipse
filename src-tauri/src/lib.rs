@@ -26,6 +26,7 @@ pub fn run() {
       let menu = tauri::menu::Menu::with_items(app, &[&show_i, &quit_i])?;
 
       tauri::tray::TrayIconBuilder::new()
+        .icon(app.default_window_icon().unwrap().clone())
         .menu(&menu)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "quit" => app.exit(0),

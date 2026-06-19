@@ -173,9 +173,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
     setUser(data.user);
     setStatus('discord_connected');
     addLog(`Connecté: ${data.user.tag}`, 'success');
-    toast.success('Connexion réussie', { 
-      description: `Connecté en tant que ${data.user.tag}` 
-    });
+    // Pas de toast ici : le toast est delégué à options.onDiscordReady
+    // pour éviter le double-toast (hook + callback) que l'utilisateur a signale.
     options.onDiscordReady?.(data.user);
   }, [addLog, options]);
 
@@ -219,7 +218,8 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
   const handleError = useCallback((data: ErrorMessage) => {
     addLog(`[Erreur] ${data.message}`, 'error');
-    toast.error('Erreur', { description: data.message });
+    // Pas de toast ici : le toast est delégué à options.onError
+    // pour éviter le double-toast (hook + callback) que l'utilisateur a signale.
     setStatus('connected'); // Reset to connected but not discord_connected
     options.onError?.(data.message);
   }, [addLog, options]);

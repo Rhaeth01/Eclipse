@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { Wifi, WifiOff, Loader2, Shield } from 'lucide-react';
@@ -97,13 +98,40 @@ export function ConnectionStatus({ state, user, className }: ConnectionStatusPro
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium" style={{ color: accent }}>
-          {label}
-        </div>
-        {user && (
-          <div className="text-xs text-[#7a7671] truncate">
-            {user.tag}
+        {state === 'connected' ? (
+          <div className="flex items-center gap-3">
+            <motion.div
+              animate={{ scale: [1, 1.08, 1], opacity: [0.7, 1, 0.7] }}
+              transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              className="shrink-0"
+              style={{ filter: `drop-shadow(0 0 8px ${accent}66)` }}
+            >
+              <Image
+                src="/icon.png"
+                alt="Eclipse"
+                width={40}
+                height={40}
+                className="w-10 h-10"
+                priority
+              />
+            </motion.div>
+            <div className="min-w-0">
+              <div className="text-sm font-medium" style={{ color: accent }}>
+                {label}
+              </div>
+            </div>
           </div>
+        ) : (
+          <>
+            <div className="text-sm font-medium" style={{ color: accent }}>
+              {label}
+            </div>
+            {user && (
+              <div className="text-xs text-[#7a7671] truncate">
+                {user.tag}
+              </div>
+            )}
+          </>
         )}
       </div>
 

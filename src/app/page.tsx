@@ -141,31 +141,39 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const updateState = async () => {
+    let unlistens: Array<() => void> = [];
+    (async () => {
       try {
         const appWindow = getCurrentWindow();
         const focused = await appWindow.isFocused();
         const visible = await appWindow.isVisible();
         updateWindowState(focused, visible);
+
+        // Tauri events : couvrent Alt-Tab, minimize, restore, etc.
+        // (les events browser window.addEventListener ne captent pas ces cas OS-level)
+        // Note: Tauri v2 n'expose pas onVisibilityChanged sur la Window, donc on
+        // s'appuie sur onFocusChanged (couvre Alt-Tab qui est le cas principal).
+        const u1 = await appWindow.onFocusChanged(({ payload }) => {
+          updateWindowState(payload, true);
+        });
+        unlistens = [u1];
       } catch {
+        // Fallback : browser events (Tauri events pas dispos, ex: dev mode)
         updateWindowState(document.hasFocus(), document.visibilityState === 'visible');
+        const onFocus = () => updateWindowState(true, true);
+        const onBlur = () => updateWindowState(false, true);
+        const onVis = () => updateWindowState(document.hasFocus(), document.visibilityState === 'visible');
+        window.addEventListener('focus', onFocus);
+        window.addEventListener('blur', onBlur);
+        document.addEventListener('visibilitychange', onVis);
+        unlistens = [
+          () => window.removeEventListener('focus', onFocus),
+          () => window.removeEventListener('blur', onBlur),
+          () => document.removeEventListener('visibilitychange', onVis),
+        ];
       }
-    };
-
-    const handleFocus = () => updateState();
-    const handleBlur = () => updateWindowState(false, true);
-    const handleVisibility = () => updateState();
-
-    window.addEventListener('focus', handleFocus);
-    window.addEventListener('blur', handleBlur);
-    document.addEventListener('visibilitychange', handleVisibility);
-    updateState();
-
-    return () => {
-      window.removeEventListener('focus', handleFocus);
-      window.removeEventListener('blur', handleBlur);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
+    })();
+    return () => unlistens.forEach(fn => fn());
   }, []);
 
   const handleHybridSetup = async (appId: string) => {
