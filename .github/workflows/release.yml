@@ -78,32 +78,32 @@ jobs:
           Write-Host "Version: $version"
           Write-Host "Exe: $exePath"
 
-          # Le .sig produit par `tauri signer sign` est lui-meme un fichier
-          # base64 d'un texte minisign. Quand on le decode, on obtient 4 lignes :
-          #   1: untrusted comment
-          #   2: base64 signature   <-- ce qu'il faut dans le JSON
-          #   3: trusted comment
-          #   4: base64 trusted sig
-          # Tauri updater attend UNIQUEMENT la base64 de la ligne 2 dans le champ
-          # `signature` de latest.json.
-          $sigBase64 = ""
+          # Le contenu du fichier .sig produit par `tauri signer sign` EST
+          # directement la string base64 a mettre dans le champ `signature` de
+          # latest.json. Tauri updater fait :
+          #   1. base64-decode le champ `signature` du JSON
+          #   2. parse le resultat comme texte minisign (4 lignes)
+          # Le .sig est deja cette base64, on n'a rien a decoder ni a extraire.
+          $sigContent = ""
           if (Test-Path $sigPath) {
-            $sigBase64Wrapper = (Get-Content $sigPath -Raw).Trim()
-            $decoded = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($sigBase64Wrapper))
-            $sigLines = $decoded -split "`n"
-            if ($sigLines.Count -ge 2) {
-              $sigBase64 = $sigLines[1].Trim()
-              Write-Host "Signature extraite (ligne 2 du .sig decode): $($sigBase64.Substring(0, [Math]::Min(20, $sigBase64.Length)))... (longueur: $($sigBase64.Length))"
-            } else {
-              Write-Host "ERREUR: .sig decode n'a que $($sigLines.Count) ligne(s), format inattendu"
-              exit 1
+            $sigContent = (Get-Content $sigPath -Raw).Trim()
+            Write-Host "Signature (.sig file content, premier 40 chars): $($sigContent.Substring(0, [Math]::Min(40, $sigContent.Length)))... (longueur: $($sigContent.Length))"
+            # Sanity check: doit etre du base64 valide
+            try {
+              $decodedCheck = [Convert]::FromBase64String($sigContent)
+              $decodedStr = [System.Text.Encoding]::UTF8.GetString($decodedCheck)
+              if ($decodedStr -notmatch "untrusted comment") {
+                Write-Host "ATTENTION: le base64 decode ne contient pas 'untrusted comment' — la signature n'est probablement pas au bon format"
+              }
+            } catch {
+              Write-Host "ATTENTION: le contenu du .sig n'est pas du base64 valide — erreur: $_"
             }
           } else {
-            Write-Host "ERREUR: Pas de fichier .sig apres signature, latest.json aurait une signature vide"
+            Write-Host "ERREUR: Pas de fichier .sig apres signature"
             exit 1
           }
 
-          if ([string]::IsNullOrWhiteSpace($sigBase64)) {
+          if ([string]::IsNullOrWhiteSpace($sigContent)) {
             Write-Host "ERREUR: signature vide — l'auto-updater Tauri refusera l'install"
             exit 1
           }
@@ -115,7 +115,7 @@ jobs:
             pub_date = $pubDate
             platforms = @{
               "windows-x86_64" = @{
-                signature = $sigBase64
+                signature = $sigContent
                 url = "https://github.com/Rhaeth01/Eclipse/releases/download/v$version/$exeName"
               }
             }
