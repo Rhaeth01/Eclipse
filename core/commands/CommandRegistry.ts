@@ -50,9 +50,9 @@ export interface DiscordManagerLike {
   editsnipeCache: Map<string, { oldContent: string; author: string; timestamp: number }>;
   globalAfkMessage: string | null;
   setGlobalAfkMessage(msg: string | null): void;
-  stealthReply(interaction: ChatInputCommandInteraction, content: string, options?: any): Promise<any>;
-  safeEphemeralReply(interaction: ChatInputCommandInteraction, content: string): Promise<void>;
-  sendAsSelfbot(interaction: ChatInputCommandInteraction, content: string, options?: any): Promise<any>;
+  stealthReply(interaction: RepliableInteraction, content: string, options?: any): Promise<any>;
+  safeEphemeralReply(interaction: RepliableInteraction, content: string): Promise<void>;
+  sendAsSelfbot(interaction: RepliableInteraction, content: string, options?: any): Promise<any>;
   redeployCommands(): Promise<string>;
   getSelfbot(): DiscordUserClient | null;
   getRest(): any;
@@ -67,6 +67,26 @@ export interface DiscordManagerLike {
   createWebhook(channelId: string, name: string, avatar?: string): Promise<any>;
   deleteMessages(messageIds: string[], channelId: string): Promise<void>;
 }
+
+/**
+ * Type structurel minimal pour toute interaction à laquelle on peut répondre
+ * (slash / user-context / message-context). Permet d'appeler stealthReply,
+ * sendAsSelfbot, safeEphemeralReply depuis n'importe quel handler, y compris
+ * depuis un menu contextuel.
+ */
+type RepliableInteraction = {
+  channelId?: string;
+  channel?: any;
+  guild?: any;
+  user?: { id: string };
+  deferred?: boolean;
+  replied?: boolean;
+  deferReply: (options?: any) => Promise<any>;
+  editReply: (options: any) => Promise<any>;
+  reply: (options: any) => Promise<any>;
+  deleteReply: () => Promise<void>;
+  followUp: (options: any) => Promise<any>;
+};
 
 export interface CommandContext {
   dm: DiscordManagerLike;

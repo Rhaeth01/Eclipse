@@ -637,7 +637,7 @@ export class DiscordUserClient
         const data = await rest.sendMessage(raw.channel_id || msg.channelId, {
           content,
           message_reference: { message_id: raw.id },
-        } as any);
+        });
         return buildMsg({ ...data, channel_id: raw.channel_id, guild_id: raw.guild_id });
       },
     };

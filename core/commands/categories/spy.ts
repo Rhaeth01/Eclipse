@@ -1,5 +1,6 @@
 import { EmbedBuilder } from 'discord.js';
 import type { CommandRegistry, SubcommandDef, ContextMenuDef } from '../CommandRegistry';
+import { steps } from '../../shared/constants';
 
 export function registerSpy(registry: CommandRegistry): void {
   registry.describeCategory('spy', 'Surveillance et espionnage');
@@ -121,13 +122,14 @@ export function registerSpy(registry: CommandRegistry): void {
     name: 'Ghostping',
     async execute(interaction, ctx) {
       const targetUser = (interaction as any).targetUser;
-      const channel = interaction.channel;
-      if (!channel || !('send' in channel)) {
-        await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
+      if (!ctx.dm.selfbot || !interaction.channelId) {
+        await interaction.reply({ content: '❌ Selfbot non connecté.', ephemeral: true });
         return;
       }
       try {
-        const ghostMsg = await (channel as any).send(`${targetUser}`);
+        const sbChannel = await ctx.dm.selfbot.channels.fetch(interaction.channelId);
+        if (!sbChannel || !sbChannel.isText()) throw new Error('Canal invalide');
+        const ghostMsg = await sbChannel.send(`${targetUser}`);
         if (ghostMsg) {
           await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
           await ghostMsg.delete().catch(() => {});
@@ -136,7 +138,6 @@ export function registerSpy(registry: CommandRegistry): void {
       } catch {
         await interaction.reply({ content: '❌ Impossible d\'envoyer le ghostping.', ephemeral: true });
       }
-      void ctx;
     },
   };
   registry.menu(ghostpingMenu);
@@ -162,7 +163,203 @@ export function registerSpy(registry: CommandRegistry): void {
   };
   registry.menu(spyUserMenu);
 
-  // Menus contextuels message
+  const invisiblePingMenu: ContextMenuDef = {
+    type: 'user',
+    name: 'Invisible Ping',
+    async execute(interaction, ctx) {
+      const targetUser = (interaction as any).targetUser;
+      if (!ctx.dm.selfbot || !interaction.channelId) {
+        await interaction.reply({ content: '❌ Selfbot non connecté.', ephemeral: true });
+        return;
+      }
+      try {
+        const sbChannel = await ctx.dm.selfbot.channels.fetch(interaction.channelId);
+        if (!sbChannel || !sbChannel.isText()) throw new Error('Canal invalide');
+        await sbChannel.send({
+          content: `<@${targetUser.id}>`,
+          allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
+          flags: 4096,
+        });
+        await interaction.reply({ content: `👻 Mention fantôme envoyée à ${targetUser.tag}`, ephemeral: true });
+      } catch {
+        await interaction.reply({ content: "❌ Impossible d'envoyer la mention fantôme.", ephemeral: true });
+      }
+    },
+  };
+  registry.menu(invisiblePingMenu);
+
+  // ── USER menus: info ───────────────────────────────────────────────────
+  const userInfoMenu: ContextMenuDef = {
+    type: 'user',
+    name: 'User Info',
+    async execute(interaction, _ctx) {
+      const targetUser = (interaction as any).targetUser;
+      const member = interaction.guild?.members?.cache?.get?.(targetUser.id);
+      const embed = new EmbedBuilder()
+        .setTitle(`👤 ${targetUser.tag}`)
+        .setThumbnail(targetUser.displayAvatarURL?.() ?? targetUser.avatarURL?.())
+        .addFields(
+          { name: 'ID', value: targetUser.id, inline: true },
+          { name: 'Créé le', value: `<t:${Math.floor((targetUser.createdTimestamp ?? Date.now()) / 1000)}:R>`, inline: true },
+          { name: 'Bot', value: targetUser.bot ? 'Oui' : 'Non', inline: true }
+        )
+        .setColor(0x5865F2);
+      if (member) {
+        embed.addFields(
+          { name: 'Rejoint le', value: `<t:${Math.floor((member.joinedTimestamp ?? 0) / 1000)}:R>`, inline: true },
+          { name: 'Rôles', value: `${(member.roles?.cache?.size ?? 1) - 1} rôles`, inline: true }
+        );
+      }
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+    },
+  };
+  registry.menu(userInfoMenu);
+
+  const viewAvatarMenu: ContextMenuDef = {
+    type: 'user',
+    name: 'View Avatar',
+    async execute(interaction, _ctx) {
+      const targetUser = (interaction as any).targetUser;
+      const url = targetUser.displayAvatarURL?.({ size: 4096 }) ?? targetUser.avatarURL?.({ size: 4096 });
+      if (!url) {
+        await interaction.reply({ content: '❌ Avatar introuvable.', ephemeral: true });
+        return;
+      }
+      const embed = new EmbedBuilder()
+        .setTitle(`🖼️ Avatar de ${targetUser.tag}`)
+        .setImage(url)
+        .setColor(0x5865F2);
+      await interaction.reply({ embeds: [embed], ephemeral: true });
+    },
+  };
+  registry.menu(viewAvatarMenu);
+
+  // ── USER menus: troll ──────────────────────────────────────────────────
+  const hackUserMenu: ContextMenuDef = {
+    type: 'user',
+    name: 'Hack User',
+    async execute(interaction, ctx) {
+      const targetUser = (interaction as any).targetUser;
+      try {
+        const msg = await ctx.dm.sendAsSelfbot(interaction, `🕵️ **HACKING ${targetUser.username.toUpperCase()}...**`);
+        for (const step of steps) {
+          await new Promise(r => setTimeout(r, 1500));
+          await msg.edit(step).catch(() => {});
+        }
+        await new Promise(r => setTimeout(r, 1000));
+        await msg
+          .edit(`🎉 **${targetUser.username}** a été hacké avec succès!\n📧 Email: ${targetUser.username.toLowerCase()}@hacked.com\n🔑 Password: ${'x'.repeat(10)}\n💰 Solde: 0.00$ (pauvre!)`)
+          .catch(() => {});
+      } catch {
+        await interaction.reply({ content: "❌ Impossible d'envoyer le message via le compte utilisateur.", ephemeral: true });
+      }
+    },
+  };
+  registry.menu(hackUserMenu);
+
+  const toggleDeleteSendMenu: ContextMenuDef = {
+    type: 'user',
+    name: 'Toggle DeleteSend',
+    async execute(interaction, ctx) {
+      const targetUser = (interaction as any).targetUser;
+      if (targetUser.id === ctx.dm.selfbot?.user?.id) {
+        await interaction.reply({ content: '❌ Tu ne peux pas te cibler toi-même.', ephemeral: true });
+        return;
+      }
+      const isActive = ctx.trollService.isDeleteSendActive(targetUser.id);
+      if (isActive) {
+        ctx.trollService.removeDeleteSend(targetUser.id);
+        await interaction.reply({ content: `🗑️ Deletesend désactivé pour ${targetUser.tag}.`, ephemeral: true });
+      } else {
+        ctx.trollService.addDeleteSend(targetUser.id);
+        await interaction.reply({ content: `🗑️ Deletesend activé pour ${targetUser.tag}. Ses messages seront supprimés automatiquement.`, ephemeral: true });
+      }
+    },
+  };
+  registry.menu(toggleDeleteSendMenu);
+
+  // ── USER menus: admin ──────────────────────────────────────────────────
+  const kickUserMenu: ContextMenuDef = {
+    type: 'user',
+    name: 'Kick User',
+    async execute(interaction, ctx) {
+      const targetUser = (interaction as any).targetUser;
+      if (!interaction.guild) {
+        await interaction.reply({ content: '❌ Serveur uniquement.', ephemeral: true });
+        return;
+      }
+      if (targetUser.id === ctx.dm.selfbot?.user?.id) {
+        await interaction.reply({ content: '❌ Tu ne peux pas te kicker toi-même.', ephemeral: true });
+        return;
+      }
+      try {
+        await ctx.dm.kickMember(interaction.guild.id, targetUser.id, 'Via context menu Eclipse');
+        await interaction.reply({ content: `👢 <@${targetUser.id}> expulsé.`, ephemeral: true });
+      } catch {
+        await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+      }
+    },
+  };
+  registry.menu(kickUserMenu);
+
+  const banUserMenu: ContextMenuDef = {
+    type: 'user',
+    name: 'Ban User',
+    async execute(interaction, ctx) {
+      const targetUser = (interaction as any).targetUser;
+      if (!interaction.guild) {
+        await interaction.reply({ content: '❌ Serveur uniquement.', ephemeral: true });
+        return;
+      }
+      if (targetUser.id === ctx.dm.selfbot?.user?.id) {
+        await interaction.reply({ content: '❌ Tu ne peux pas te bannir toi-même.', ephemeral: true });
+        return;
+      }
+      try {
+        await ctx.dm.banMember(interaction.guild.id, targetUser.id, 'Via context menu Eclipse');
+        await interaction.reply({ content: `🔨 <@${targetUser.id}> banni.`, ephemeral: true });
+      } catch {
+        await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+      }
+    },
+  };
+  registry.menu(banUserMenu);
+
+  // ── MESSAGE menus: text transformations ───────────────────────────────
+  const mockTextMenu: ContextMenuDef = {
+    type: 'message',
+    name: 'Mock Text',
+    async execute(interaction, ctx) {
+      const targetMessage = (interaction as any).targetMessage;
+      const text = targetMessage?.content || '';
+      if (!text) {
+        await interaction.reply({ content: '❌ Aucun texte à mocker.', ephemeral: true });
+        return;
+      }
+      let mocked = '';
+      for (let i = 0; i < text.length; i++) mocked += i % 2 === 0 ? text[i].toLowerCase() : text[i].toUpperCase();
+      await ctx.dm.stealthReply(interaction, mocked);
+    },
+  };
+  registry.menu(mockTextMenu);
+
+  const reverseTextMenu: ContextMenuDef = {
+    type: 'message',
+    name: 'Reverse Text',
+    async execute(interaction, ctx) {
+      const targetMessage = (interaction as any).targetMessage;
+      const text = targetMessage?.content || '';
+      if (!text) {
+        await interaction.reply({ content: '❌ Aucun texte à inverser.', ephemeral: true });
+        return;
+      }
+      const reversed = text.split('').reverse().join('');
+      await ctx.dm.stealthReply(interaction, `🔄 ${reversed}`);
+    },
+  };
+  registry.menu(reverseTextMenu);
+
+  // Menus contextuels message existants (Translate, Copy Raw)
   const translateMenu: ContextMenuDef = {
     type: 'message',
     name: 'Translate',

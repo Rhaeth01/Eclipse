@@ -45,6 +45,41 @@ export function registerTroll(registry: CommandRegistry): void {
     },
     {
       category: 'troll',
+      name: 'invisibleping',
+      description: 'Mention fantôme — surligne sans notifier',
+      build: s =>
+        s
+          .addUserOption(o => o.setName('cible').setDescription('Victime').setRequired(true))
+          .addStringOption(o => o.setName('message').setDescription('Texte accompagnant la mention').setRequired(false)),
+      async execute(interaction, ctx) {
+        const target = interaction.options.getUser('cible');
+        if (!target) {
+          await ctx.dm.safeEphemeralReply(interaction, '❌ Cible invalide.');
+          return;
+        }
+        try {
+          if (!ctx.dm.selfbot || !interaction.channelId) throw new Error('Selfbot non connecté');
+          if (!interaction.deferred && !interaction.replied) await interaction.deferReply({ ephemeral: true });
+          const channel = await ctx.dm.selfbot.channels.fetch(interaction.channelId);
+          if (!channel || !channel.isText()) throw new Error('Canal invalide');
+
+          const suffix = interaction.options.getString('message') ?? '';
+          const content = `<@${target.id}>${suffix ? ' ' + suffix : ''}`;
+
+          await channel.send({
+            content,
+            allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
+            flags: 4096,
+          });
+
+          await interaction.deleteReply().catch(() => {});
+        } catch {
+          await ctx.dm.safeEphemeralReply(interaction, "❌ Impossible d'envoyer la mention fantôme via le compte utilisateur.");
+        }
+      },
+    },
+    {
+      category: 'troll',
       name: 'annoy',
       description: 'Spam mention silencieux (1-5)',
       build: s =>
@@ -179,6 +214,10 @@ export function registerTroll(registry: CommandRegistry): void {
       name: 'typing',
       description: 'Indicateur d\'écriture perpétuel (60s)',
       async execute(interaction, ctx) {
+        if (ctx.getSilentTyping()) {
+          await interaction.reply({ content: '🤫 Silent typing activé, indicateur bloqué.', ephemeral: true });
+          return;
+        }
         await interaction.reply({ content: '⌨️ Indicateur d\'écriture activé pendant 60s...', ephemeral: true });
         const channel = interaction.channel;
         if (channel?.isTextBased()) {

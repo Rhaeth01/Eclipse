@@ -118,7 +118,15 @@ export interface IChannel {
   parent: IChannel | null;
   recipients?: Array<{ id: string }>;
   guild?: IGuild;
-  send(content: string | { content?: string; tts?: boolean; embeds?: any[]; components?: any[]; message_reference?: { message_id: string } }): Promise<IMessage>;
+  send(content: string | {
+    content?: string;
+    tts?: boolean;
+    embeds?: any[];
+    components?: any[];
+    message_reference?: { message_id: string };
+    allowed_mentions?: { parse?: string[]; users?: string[]; roles?: string[]; replied_user?: boolean };
+    flags?: number;
+  }): Promise<IMessage>;
   sendTyping(): Promise<void>;
   permissionsFor(userId: string): Permissions | null;
   messages: {

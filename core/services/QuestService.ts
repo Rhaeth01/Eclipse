@@ -3,6 +3,10 @@
  * Permet de compléter automatiquement les quêtes Discord
  */
 
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
+import { spawn } from 'child_process';
 import { logger } from './Logger';
 import { WebSocketService } from './WebSocketService';
 import { DiscordManager } from '../discord/DiscordManager';
@@ -417,49 +421,78 @@ export class QuestService {
    * Note: Sur Windows, crée un petit exe temporaire avec le bon nom
    */
   private async launchDummyProcess(executableName: string, gameName: string): Promise<any> {
-    const { spawn } = require('child_process');
-    const path = require('path');
-    const fs = require('fs');
-    const os = require('os');
-
-    // Sur Windows: crée un exe factice dans un dossier temporaire
+    // Sur Windows: crée un vrai .exe (copie d'un binaire système renommé) dans un
+    // dossier temporaire, puis le lance detached. Discord scanne la liste des
+    // processus actifs et fait correspondre leur nom aux exécutables de jeux
+    // enregistrés — un .bat est invisible, un .exe nommé comme le jeu peut
+    // être détecté (au moins pour les jeux dont la détection repose uniquement
+    // sur le nom de processus ; pour les jeux vérifiant signature / hash / IPC,
+    // l'astuce peut être insuffisante — voir le warning loggé).
     if (os.platform() === 'win32') {
       const tempDir = path.join(os.tmpdir(), 'eclipse_quests', gameName.replace(/\s+/g, '_'));
-      
+
       if (!fs.existsSync(tempDir)) {
         fs.mkdirSync(tempDir, { recursive: true });
       }
 
       const exePath = path.join(tempDir, executableName);
-      
-      // Copie un template exe ou crée un simple processus Node
-      // Pour l'instant, on utilise un simple processus Node renommé
-      // v0.4.3: backticks pour interpoler ${gameName} (avant: le string
-      // contenait littéralement '${gameName}' au lieu du nom du jeu).
-      const dummyScript = `console.log('Dummy process for ${gameName}'); setInterval(() => {}, 1000);`;
-      
-      const scriptPath = path.join(tempDir, 'dummy.js');
-      fs.writeFileSync(scriptPath, dummyScript);
 
-      // Crée un wrapper batch avec le nom du jeu
-      const batContent = `@echo off\nnode "${scriptPath}"\n`;
-      const batPath = path.join(tempDir, executableName.replace('.exe', '.bat'));
-      fs.writeFileSync(batPath, batContent);
+      // Stratégie de don binaire en cascade : cmd.exe → ping.exe → process.execPath (node)
+      // On copie un vrai PE et on le renomme. Discord verra le process avec le nom
+      // du jeu cible. (v0.4.3: avant on créait un .bat — Discord ne peut pas le voir
+      // comme un jeu, et le nom de fichier .bat ne correspondait pas au .exe attendu.)
+      const systemRoot = process.env.SystemRoot || 'C:\\Windows';
+      const candidates = [
+        path.join(systemRoot, 'System32', 'cmd.exe'),
+        path.join(systemRoot, 'System32', 'ping.exe'),
+        process.execPath,
+      ];
 
-      // Lance le processus
-      const proc = spawn('node', [scriptPath], {
+      let copied = false;
+      let donorUsed = '';
+      for (const donor of candidates) {
+        if (!fs.existsSync(donor)) continue;
+        try {
+          fs.copyFileSync(donor, exePath);
+          copied = true;
+          donorUsed = donor;
+          logger.info('QuestService', `Donor binaire utilisé: ${donor} → ${exePath}`);
+          break;
+        } catch (err: any) {
+          logger.warn('QuestService', `Donor ${donor} inaccessible: ${err?.message ?? err}`);
+        }
+      }
+      if (!copied) {
+        throw new Error(
+          `Impossible de créer un dummy .exe pour ${executableName} — aucun donor binaire accessible.`
+        );
+      }
+
+      // Le .exe cmd.exe (premier candidat) avec /c ping 3600 reste vivant 1h
+      // sans produire de sortie visible. ping.exe (second) ne fait qu'émettre puis exit —
+      // moins adapté, on retombe sur cmd.exe en priorité. Pour process.execPath (node),
+      // on passe un flag --eval qui boucle 1h sans rien faire.
+      const args = donorUsed && path.basename(donorUsed) === path.basename(process.execPath)
+        ? ['-e', 'setInterval(()=>{},1e3)']
+        : ['/c', 'ping', '-n', '3600', '127.0.0.1', '>nul'];
+      const proc = spawn(exePath, args, {
         detached: true,
         stdio: 'ignore',
-        cwd: tempDir
+        cwd: tempDir,
+        windowsHide: true,
       });
-
       proc.unref();
-      
-      logger.info('QuestService', `Processus factice lancé: ${batPath} (PID: ${proc.pid})`);
-      
-      return { pid: proc.pid, path: batPath, type: 'node' };
+
+      logger.warn(
+        'QuestService',
+        `Quest PLAY best-effort: un .exe nommé "${executableName}" tourne (PID ${proc.pid}). ` +
+          'Discord peut ne pas créditer toutes les quêtes (certains jeux vérifient signature / hash). ' +
+          'Pour les jeux exigeants, lance le vrai jeu à la place.'
+      );
+
+      return { pid: proc.pid, path: exePath, type: 'windows-exe' };
     }
-    
+
     // Linux/Mac: processus simple
     const proc = spawn('sleep', ['3600'], { detached: true });
     proc.unref();
@@ -482,13 +515,11 @@ export class QuestService {
       logger.warn('QuestService', 'Erreur arrêt processus', err);
     }
 
-    // Cleanup des fichiers temporaires (.bat, dummy.js, etc.)
+    // Cleanup des fichiers temporaires (.exe, dummy.js, etc.)
     if (processInfo.path) {
       try {
-        const fs = require('fs');
-        const path = require('path');
         const dir = path.dirname(processInfo.path);
-        // Petit délai pour s'assurer que le process Node a libéré les fichiers
+        // Petit délai pour s'assurer que le process a libéré les fichiers
         setTimeout(() => {
           try {
             fs.rmSync(dir, { recursive: true, force: true });

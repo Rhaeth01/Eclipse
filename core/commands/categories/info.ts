@@ -51,14 +51,24 @@ export function registerInfo(registry: CommandRegistry): void {
       description: 'Infos du serveur',
       build: s => s.addStringOption(o => o.setName('guild_id').setDescription('ID du serveur (requis en DM)').setRequired(false)),
       async execute(interaction) {
-        const targetGuildId = interaction.options.getString('guild_id') || interaction.guildId;
+        const targetGuildId =
+          interaction.options.getString('guild_id') ||
+          interaction.guildId ||
+          interaction.guild?.id;
         if (!targetGuildId) {
           await interaction.reply({ content: '❌ ID du serveur requis en DM.', ephemeral: true });
           return;
         }
-        const guild = interaction.client.guilds.cache.get(targetGuildId);
+        // v0.6.0: préfère interaction.guild (résolu par Discord pour la commande)
+        // puis tombe sur le cache de l'App Bot. Avant, on n'utilisait que
+        // interaction.client.guilds.cache, ce qui faisait échouer la commande
+        // dans les serveurs où l'App Bot n'est pas membre (selfbot-only).
+        const guild =
+          interaction.guild?.id === targetGuildId
+            ? interaction.guild
+            : interaction.client?.guilds?.cache?.get?.(targetGuildId);
         if (!guild) {
-          await interaction.reply({ content: '❌ Serveur introuvable dans le cache.', ephemeral: true });
+          await interaction.reply({ content: '❌ Serveur introuvable.', ephemeral: true });
           return;
         }
         const embed = new EmbedBuilder()

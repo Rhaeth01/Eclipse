@@ -218,7 +218,15 @@ export class DiscordREST {
 
   async sendMessage(
     channelId: string,
-    content: string | { content?: string; tts?: boolean; embeds?: any[] }
+    content: string | {
+      content?: string;
+      tts?: boolean;
+      embeds?: any[];
+      components?: any[];
+      message_reference?: { message_id: string };
+      allowed_mentions?: { parse?: string[]; users?: string[]; roles?: string[]; replied_user?: boolean };
+      flags?: number;
+    }
   ): Promise<any> {
     const body =
       typeof content === "string"

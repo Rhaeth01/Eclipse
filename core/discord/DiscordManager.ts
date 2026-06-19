@@ -248,6 +248,7 @@ export class DiscordManager extends EventEmitter {
         );
       },
       sendTyping: async (channelId: string) => {
+        if (this.commandCtx?.getSilentTyping?.()) return;
         await rateLimiter.schedule(
           `channels/${channelId}/typing`,
           async () => {
