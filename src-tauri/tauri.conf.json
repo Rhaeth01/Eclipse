@@ -41,6 +41,12 @@
     "targets": "nsis",
     "windows": {
       "nsis": {
+        "installerIcon": "./icons/installer.ico",
+        "headerImage": "./windows/installer-header.bmp",
+        "sidebarImage": "./windows/installer-sidebar.bmp",
+        "languages": ["French"],
+        "displayLanguageSelector": false,
+        "compression": "lzma",
         "installerHooks": "./windows/hooks.nsh"
       }
     },

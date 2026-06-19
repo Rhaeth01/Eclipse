@@ -11,6 +11,16 @@
   Sleep 2000
 !macroend
 
+; POSTINSTALL : relance Eclipse.exe apres une install silencieuse (mise a
+; jour via l'auto-updater). En mode /S, la page de fin n'est pas affichee
+; donc Tauri ne relance pas l'app automatiquement : on le fait ici. Le
+; chemin $INSTDIR pointe vers le dossier d'installation NSIS.
+!macro NSIS_HOOK_POSTINSTALL
+  DetailPrint "Relance d'Eclipse apres installation..."
+  ; Lancer en detach pour ne pas bloquer l'installeur.
+  nsExec::ExecToLog '"$INSTDIR\Eclipse.exe"'
+!macroend
+
 !macro NSIS_HOOK_PREUNINSTALL
   DetailPrint "Arret des processus Eclipse avant desinstallation..."
   nsExec::ExecToLog 'taskkill /F /IM Eclipse.exe /T'

@@ -38,6 +38,9 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Generate NSIS branding assets
+        run: npm run nsis-assets
+
       - name: Build Tauri
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}

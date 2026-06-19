@@ -25,6 +25,7 @@ import { CommandsListPanel } from '@/components/CommandsListPanel';
 
 import { useWebSocket, useAnimation, useRichPresence, useCommands } from '@/hooks';
 import { useUpdater } from '@/hooks/useUpdater';
+import { UpdateOverlay } from '@/components/UpdateOverlay';
 import { updateWindowState } from '@/lib/notification';
 import { ActivityType } from '@/lib/websocket/types';
 
@@ -1109,9 +1110,9 @@ export default function Home() {
         commandCount={commands.commandCount}
       />
 
-      {/* Update notification */}
+      {/* Update notification (visible uniquement quand aucune MAJ n'est en cours) */}
       <AnimatePresence>
-        {updater.updateAvailable && updater.updateInfo && (
+        {updater.phase === 'idle' && updater.updateAvailable && updater.updateInfo && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1132,7 +1133,6 @@ export default function Home() {
               <GlowButton
                 size="sm"
                 onClick={updater.downloadAndInstall}
-                loading={updater.downloading}
                 icon={<Download className="w-3.5 h-3.5" />}
               >
                 Installer
@@ -1141,6 +1141,17 @@ export default function Home() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Overlay plein écran : progression + redémarrage */}
+      <UpdateOverlay
+        phase={updater.phase}
+        progress={updater.progress}
+        version={updater.updateInfo?.version}
+        downloaded={updater.downloaded}
+        contentLength={updater.contentLength}
+        error={updater.error}
+        onDismiss={updater.reset}
+      />
     </main>
   );
 }
