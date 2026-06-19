@@ -1,15 +1,21 @@
 /**
  * Tests pour /troll invisibleping (slash) + context menu USER 'Invisible Ping'.
  *
- * Mécanisme Discord visé :
- *   - `allowed_mentions: { parse: [], users: [], roles: [], replied_user: false }`
- *     → Discord omet la cible du tableau `mentions` côté backend
- *   - `flags: 4096` (SUPPRESS_NOTIFICATIONS) → bit `@silent` client, supprime push/badge
- *   - La balise `<@USERID>` reste dans `content` → le client de la victime
- *     continue de surligner le message en jaune comme un vrai ping
+ * Mécanisme Discord visé (technique "ghost mention" / ZWSP) :
+ *   - `content: '<@\u200B!USERID>'` — un zero-width space (U+200B) est inséré
+ *     entre `@` et l'ID. Discord parse la mention, ajoute la cible au tableau
+ *     `mentions` côté backend, ET envoie la notification (push/badge/son).
+ *   - Le renderer client de la cible n'affiche PAS le pseudo cliquable à
+ *     cause du caractère invisible — le message apparaît en surbrillance
+ *     jaune (parce que la cible est dans `mentions`) mais le texte visible
+ *     ne montre aucun pseudo.
+ *   - Aucun `flags: 4096` (SUPPRESS_NOTIFICATIONS) → on VEUT la notification.
+ *   - Aucun `allowed_mentions` restrictif → on laisse Discord parser.
  *
- * Effet observable : la victime voit un message **surligné** mais ne reçoit
- * **aucune notification** (pas de push, pas de badge, pas de son).
+ * Résultat observable pour la victime :
+ *   - ✓ Notification reçue (push, badge, son)
+ *   - ✓ Message surligné en jaune (bandeau latéral, fond de la ligne)
+ *   - ✗ Aucun pseudo visible dans le texte du message
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -45,7 +51,7 @@ function makeMockCtx(overrides?: Partial<CommandContext>): CommandContext {
 function makeChatInputWithOptions(opts: {
   commandName: string;
   subcommand: string;
-  user?: { id: string; tag: string; username: string; displayAvatarURL: () => string };
+  cible?: { id: string; tag: string; username: string; displayAvatarURL: () => string };
   channel?: any;
   message?: string;
   channelId?: string;
@@ -56,7 +62,8 @@ function makeChatInputWithOptions(opts: {
     options: {
       getSubcommand: () => opts.subcommand,
       getSubcommandGroup: () => null,
-      getUser: vi.fn().mockReturnValue(opts.user) as any,
+      getUser: vi.fn().mockReturnValue(opts.cible) as any,
+      getMentionable: vi.fn().mockReturnValue(opts.cible) as any,
       getString: vi.fn().mockReturnValue(opts.message ?? null) as any,
     },
     channel: opts.channel,
@@ -75,7 +82,6 @@ function makeUserContextMenu(opts: {
   targetUser: { id: string; tag: string };
   channelId: string;
   channel?: any;
-  selfbotChannelFetch?: any;
 }): UserContextMenuCommandInteraction {
   return {
     commandName: 'Invisible Ping',
@@ -94,7 +100,7 @@ function makeUserContextMenu(opts: {
 }
 
 describe('Invisible ping — /troll invisibleping (slash)', () => {
-  it('envoie le payload avec allowed_mentions vide + flags 4096 (SUPPRESS_NOTIFICATIONS)', async () => {
+  it('envoie le payload avec ZWSP (U+200B) entre @ et l\'ID, SANS flags:4096, SANS allowed_mentions restrictif', async () => {
     const r = new CommandRegistry();
     registerTroll(r);
 
@@ -118,20 +124,32 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
     const i = makeChatInputWithOptions({
       commandName: 'troll',
       subcommand: 'invisibleping',
-      user: target,
+      cible: target,
       channelId: 'ch-1',
     });
 
     await r.dispatch(i, ctx);
 
+    // Le payload doit contenir la mention avec ZWSP
+    // ET ne doit PAS contenir flags:4096 (on veut la notification)
+    // ET ne doit PAS contenir allowed_mentions restrictif
     expect(sendSpy).toHaveBeenCalledWith({
-      content: '<@victim-1>',
-      allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
-      flags: 4096,
+      content: '<@\u200B!victim-1>',
     });
+
+    // Anti-régression : pas de flag SUPPRESS_NOTIFICATIONS
+    const callArgs = sendSpy.mock.calls[0][0];
+    expect(callArgs.flags).toBeUndefined();
+
+    // Anti-régression : pas d'allowed_mentions restrictif
+    expect(callArgs.allowed_mentions).toBeUndefined();
+
+    // Anti-régression : pas de spoiler wrapping
+    expect(callArgs.content).not.toMatch(/^\s*\|/);
+    expect(callArgs.content).not.toMatch(/\|\|\s*$/);
   });
 
-  it("concatène le suffixe de message optionnel après la mention", async () => {
+  it("concatène le suffixe de message optionnel après la mention (toujours hors spoiler)", async () => {
     const r = new CommandRegistry();
     registerTroll(r);
 
@@ -147,7 +165,7 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
     const i = makeChatInputWithOptions({
       commandName: 'troll',
       subcommand: 'invisibleping',
-      user: target,
+      cible: target,
       channelId: 'ch-1',
       message: 'tu me vois pas',
     });
@@ -156,7 +174,39 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
 
     expect(sendSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: '<@v-1> tu me vois pas',
+        content: '<@\u200B!v-1> tu me vois pas',
+      })
+    );
+  });
+
+  it("utilise le format role <@&\\u200BID> si la cible est un Role", async () => {
+    const r = new CommandRegistry();
+    registerTroll(r);
+
+    const sendSpy = vi.fn().mockResolvedValue(undefined);
+    const ctx = makeMockCtx({
+      dm: {
+        selfbot: { channels: { fetch: vi.fn().mockResolvedValue({ isText: () => true, send: sendSpy }) } },
+        safeEphemeralReply: vi.fn().mockResolvedValue(undefined),
+      } as any,
+    });
+
+    // Mock Role : getMentionable retourne un objet qui ressemble à un Role
+    const fakeRole: any = { id: 'role-1', color: 0xff0000, position: 5 };
+    Object.setPrototypeOf(fakeRole, (await import('discord.js')).Role.prototype);
+
+    const i = makeChatInputWithOptions({
+      commandName: 'troll',
+      subcommand: 'invisibleping',
+      cible: fakeRole,
+      channelId: 'ch-1',
+    });
+
+    await r.dispatch(i, ctx);
+
+    expect(sendSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: '<@&\u200Brole-1>',
       })
     );
   });
@@ -180,7 +230,7 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
     const i = makeChatInputWithOptions({
       commandName: 'troll',
       subcommand: 'invisibleping',
-      user: target,
+      cible: target,
       channelId: 'ch-1',
     });
     (i.deferReply as any) = vi.fn().mockImplementation(async () => {
@@ -209,7 +259,7 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
     const i = makeChatInputWithOptions({
       commandName: 'troll',
       subcommand: 'invisibleping',
-      user: target,
+      cible: target,
       channelId: 'ch-1',
     });
 
@@ -231,7 +281,7 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
       commandName: 'troll',
       subcommand: 'invisibleping',
     });
-    (i.options.getUser as any) = vi.fn().mockReturnValue(null);
+    (i.options.getMentionable as any) = vi.fn().mockReturnValue(null);
 
     await r.dispatch(i, ctx);
 
@@ -255,7 +305,7 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
     const i = makeChatInputWithOptions({
       commandName: 'troll',
       subcommand: 'invisibleping',
-      user: target,
+      cible: target,
       channelId: 'ch-1',
     });
 
@@ -283,7 +333,7 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
     const i = makeChatInputWithOptions({
       commandName: 'troll',
       subcommand: 'invisibleping',
-      user: target,
+      cible: target,
       channelId: 'ch-1',
     });
 
@@ -297,7 +347,7 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
 });
 
 describe('Invisible ping — context menu USER "Invisible Ping"', () => {
-  it('envoie le payload allowed_mentions + flags via le selfbot (pas App Bot)', async () => {
+  it('envoie le payload ZWSP via le selfbot (pas App Bot), SANS spoiler, SANS flags:4096', async () => {
     const r = new CommandRegistry();
     registerSpy(r);
 
@@ -322,10 +372,14 @@ describe('Invisible ping — context menu USER "Invisible Ping"', () => {
     await r.dispatchUserContextMenu(i, ctx);
 
     expect(sendSpy).toHaveBeenCalledWith({
-      content: '<@victim-1>',
-      allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
-      flags: 4096,
+      content: '<@\u200B!victim-1>',
     });
+
+    const callArgs = sendSpy.mock.calls[0][0];
+    expect(callArgs.flags).toBeUndefined();
+    expect(callArgs.allowed_mentions).toBeUndefined();
+    expect(callArgs.content).not.toMatch(/^\|/);
+    expect(callArgs.content).not.toMatch(/\|\|$/);
   });
 
   it('confirme éphémèrement le succès (réponse visible à l\'owner)', async () => {

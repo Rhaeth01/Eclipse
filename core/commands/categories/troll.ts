@@ -1,3 +1,4 @@
+import { Role } from 'discord.js';
 import type { CommandRegistry, SubcommandDef } from '../CommandRegistry';
 import { steps } from '../../shared/constants';
 
@@ -46,14 +47,14 @@ export function registerTroll(registry: CommandRegistry): void {
     {
       category: 'troll',
       name: 'invisibleping',
-      description: 'Mention fantôme — surligne sans notifier',
+      description: 'Mention fantôme — notifie et surligne, pseudo invisible',
       build: s =>
         s
-          .addUserOption(o => o.setName('cible').setDescription('Victime').setRequired(true))
+          .addMentionableOption(o => o.setName('cible').setDescription('Utilisateur ou rôle').setRequired(true))
           .addStringOption(o => o.setName('message').setDescription('Texte accompagnant la mention').setRequired(false)),
       async execute(interaction, ctx) {
-        const target = interaction.options.getUser('cible');
-        if (!target) {
+        const cible = interaction.options.getMentionable('cible');
+        if (!cible) {
           await ctx.dm.safeEphemeralReply(interaction, '❌ Cible invalide.');
           return;
         }
@@ -64,12 +65,25 @@ export function registerTroll(registry: CommandRegistry): void {
           if (!channel || !channel.isText()) throw new Error('Canal invalide');
 
           const suffix = interaction.options.getString('message') ?? '';
-          const content = `<@${target.id}>${suffix ? ' ' + suffix : ''}`;
+          // Technique du "ghost mention" (zero-width character) : un caractère
+          // U+200B (zero-width space) est inséré entre `@` et l'ID. Discord
+          // parse quand même la mention (notification + surlignage jaune) MAIS
+          // le renderer ne l'affiche pas comme un pseudo cliquable — la cible
+          // voit son message surligné en mention sans aucun pseudo visible.
+          // Format : <@ + ZWSP + ! + ID> pour user, <@& + ZWSP + ID> pour role.
+          const isRole = cible instanceof Role;
+          // APIInteractionDataResolvedGuildMember n'a pas de .id exposé — on
+          // caste en any pour extraire l'ID sans bruit TypeScript.
+          const id = (cible as any).user?.id ?? (cible as any).id;
+          const content = isRole
+            ? `<@&\u200B${id}>${suffix ? ' ' + suffix : ''}`
+            : `<@\u200B!${id}>${suffix ? ' ' + suffix : ''}`;
 
           await channel.send({
             content,
-            allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
-            flags: 4096,
+            // Pas de flags: 4096 → la notification DOIT être envoyée
+            // Pas d'allowed_mentions restrictif → Discord parse la mention
+            // (parse par défaut inclut users + roles)
           });
 
           await interaction.deleteReply().catch(() => {});

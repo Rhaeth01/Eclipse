@@ -175,10 +175,11 @@ export function registerSpy(registry: CommandRegistry): void {
       try {
         const sbChannel = await ctx.dm.selfbot.channels.fetch(interaction.channelId);
         if (!sbChannel || !sbChannel.isText()) throw new Error('Canal invalide');
+        // Ghost mention technique : zero-width char entre @ et l'ID.
+        // Discord parse (notification + surlignage) mais le renderer n'affiche
+        // pas le pseudo. La cible voit le message en surbrillance sans mention.
         await sbChannel.send({
-          content: `<@${targetUser.id}>`,
-          allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
-          flags: 4096,
+          content: `<@\u200B!${targetUser.id}>`,
         });
         await interaction.reply({ content: `👻 Mention fantôme envoyée à ${targetUser.tag}`, ephemeral: true });
       } catch {
