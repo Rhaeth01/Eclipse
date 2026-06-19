@@ -191,8 +191,8 @@ describe('Info commands — runtime', () => {
       const ctx = makeMockCtx();
 
       const guild = makeGuild({ memberCount: 250, name: 'MyServer' });
-      guild.channels.cache.set('c-1', { id: 'c-1', name: 'general' });
-      guild.channels.cache.set('c-2', { id: 'c-2', name: 'memes' });
+      guild.channels.cache.set('c-1', { id: 'c-1', name: 'general' } as any);
+      guild.channels.cache.set('c-2', { id: 'c-2', name: 'memes' } as any);
 
       const i = makeChatInput({
         commandName: 'info',
