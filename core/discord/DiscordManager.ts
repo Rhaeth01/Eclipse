@@ -455,7 +455,21 @@ export class DiscordManager extends EventEmitter {
       throw new Error('Canal textuel introuvable');
     }
 
-    const sentMsg = await (channel as any).send({ content, ...options });
+    // Defaults "silent mention" : un user account (selfbot) qui envoie un
+    // message via l'API déclenche l'anti-spam Discord dès qu'une mention est
+    // parsée (push/badge/son). On force donc :
+    //   - allowed_mentions vide → Discord ne parse RIEN (pas d'@everyone,
+    //     pas d'@user, pas d'@role). Le texte reste affiché tel quel par le
+    //     client de la cible mais aucune notif n'est envoyée.
+    //   - flags: 4096 (SUPPRESS_NOTIFICATIONS) → filet de sécurité.
+    // Les callers qui veulent explicitement notifier quelqu'un peuvent
+    // surcharger via `options.allowed_mentions` et `options.flags`.
+    const safeOptions = {
+      allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
+      flags: 4096,
+      ...options,
+    };
+    const sentMsg = await (channel as any).send({ content, ...safeOptions });
     await interaction.deleteReply().catch(() => { });
     return sentMsg;
   }
