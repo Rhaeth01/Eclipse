@@ -65,25 +65,26 @@ export function registerTroll(registry: CommandRegistry): void {
           if (!channel || !channel.isText()) throw new Error('Canal invalide');
 
           const suffix = interaction.options.getString('message') ?? '';
-          // Technique du "ghost mention" (zero-width character) : un caractère
-          // U+200B (zero-width space) est inséré entre `@` et l'ID. Discord
-          // parse quand même la mention (notification + surlignage jaune) MAIS
-          // le renderer ne l'affiche pas comme un pseudo cliquable — la cible
-          // voit son message surligné en mention sans aucun pseudo visible.
-          // Format : <@ + ZWSP + ! + ID> pour user, <@& + ZWSP + ID> pour role.
+          // "Invisible ping" (silent mention) : on envoie un texte qui ressemble
+          // à une mention mais Discord ne la parse PAS (allowed_mentions vide)
+          // et ne déclenche AUCUNE notification (flags: 4096 SUPPRESS_NOTIFICATIONS).
+          // Le client de la cible rend quand même `<@id>` comme @pseudo avec la
+          // couleur mention → highlight jaune visible, mais zéro push/badge/son.
+          // C'est ce qui rend la technique indétectable par l'anti-spam selfbot
+          // (un user account qui notifie via API se fait flag, alors qu'un message
+          // texte sans mention ne lève aucune alerte).
           const isRole = cible instanceof Role;
           // APIInteractionDataResolvedGuildMember n'a pas de .id exposé — on
           // caste en any pour extraire l'ID sans bruit TypeScript.
           const id = (cible as any).user?.id ?? (cible as any).id;
           const content = isRole
-            ? `<@&\u200B${id}>${suffix ? ' ' + suffix : ''}`
-            : `<@\u200B!${id}>${suffix ? ' ' + suffix : ''}`;
+            ? `<@&${id}>${suffix ? ' ' + suffix : ''}`
+            : `<@${id}>${suffix ? ' ' + suffix : ''}`;
 
           await channel.send({
             content,
-            // Pas de flags: 4096 → la notification DOIT être envoyée
-            // Pas d'allowed_mentions restrictif → Discord parse la mention
-            // (parse par défaut inclut users + roles)
+            allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
+            flags: 4096,
           });
 
           await interaction.deleteReply().catch(() => {});

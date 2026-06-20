@@ -1,21 +1,29 @@
 /**
  * Tests pour /troll invisibleping (slash) + context menu USER 'Invisible Ping'.
  *
- * Mécanisme Discord visé (technique "ghost mention" / ZWSP) :
- *   - `content: '<@\u200B!USERID>'` — un zero-width space (U+200B) est inséré
- *     entre `@` et l'ID. Discord parse la mention, ajoute la cible au tableau
- *     `mentions` côté backend, ET envoie la notification (push/badge/son).
- *   - Le renderer client de la cible n'affiche PAS le pseudo cliquable à
- *     cause du caractère invisible — le message apparaît en surbrillance
- *     jaune (parce que la cible est dans `mentions`) mais le texte visible
- *     ne montre aucun pseudo.
- *   - Aucun `flags: 4096` (SUPPRESS_NOTIFICATIONS) → on VEUT la notification.
- *   - Aucun `allowed_mentions` restrictif → on laisse Discord parser.
+ * Mécanisme Discord visé (technique "silent mention" / invisible ping) :
+ *   - `content: '<@USERID>'` — texte normal qui RESSEMBLE à une mention.
+ *   - `allowed_mentions: { parse: [], users: [], roles: [], replied_user: false }`
+ *     → Discord ne parse PAS la mention, donc :
+ *       * pas d'entrée ajoutée à `mentions` côté backend
+ *       * pas d'événement MESSAGE_MENTION dispatché
+ *   - `flags: 4096` (SUPPRESS_NOTIFICATIONS) → aucune notif push/badge/son.
+ *   - Le client de la cible, lui, REND `<@id>` comme @pseudo avec la couleur
+ *     mention (parce que le client ne sait pas ce que Discord a "autorisé" en
+ *     backend, il affiche juste le texte reçu). Donc la cible voit le
+ *     highlight jaune + le pseudo — mais sans aucune notification.
  *
  * Résultat observable pour la victime :
- *   - ✓ Notification reçue (push, badge, son)
+ *   - ✗ Aucune notification (push, badge, son)
  *   - ✓ Message surligné en jaune (bandeau latéral, fond de la ligne)
- *   - ✗ Aucun pseudo visible dans le texte du message
+ *   - ✓ Pseudo cliquable visible dans le texte
+ *
+ * Pourquoi ce mécanisme vs l'ancienne technique ZWSP :
+ *   - ZWSP (`<@\u200B!id>`) : Discord parse → notification → détectable par
+ *     l'anti-spam selfbot, l'API renvoie 403/429 et le catch de la commande
+ *     affiche "Impossible d'envoyer la mention fantôme via le compte utilisateur".
+ *   - Silent mention : Discord voit un message texte normal, aucune mention
+ *     n'est parsée → aucune alerte anti-spam.
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -100,7 +108,7 @@ function makeUserContextMenu(opts: {
 }
 
 describe('Invisible ping — /troll invisibleping (slash)', () => {
-  it('envoie le payload avec ZWSP (U+200B) entre @ et l\'ID, SANS flags:4096, SANS allowed_mentions restrictif', async () => {
+  it('envoie le payload silent mention (flags:4096 + allowed_mentions vide) sans ZWSP', async () => {
     const r = new CommandRegistry();
     registerTroll(r);
 
@@ -130,19 +138,17 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
 
     await r.dispatch(i, ctx);
 
-    // Le payload doit contenir la mention avec ZWSP
-    // ET ne doit PAS contenir flags:4096 (on veut la notification)
-    // ET ne doit PAS contenir allowed_mentions restrictif
+    // Le payload doit être une mention texte simple + flags:4096 + allowed_mentions vide.
     expect(sendSpy).toHaveBeenCalledWith({
-      content: '<@\u200B!victim-1>',
+      content: '<@victim-1>',
+      allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
+      flags: 4096,
     });
 
-    // Anti-régression : pas de flag SUPPRESS_NOTIFICATIONS
+    // Anti-régression : aucun caractère ZWSP (la technique ZWSP déclenchait
+    // une notification et se faisait bloquer par l'anti-spam selfbot).
     const callArgs = sendSpy.mock.calls[0][0];
-    expect(callArgs.flags).toBeUndefined();
-
-    // Anti-régression : pas d'allowed_mentions restrictif
-    expect(callArgs.allowed_mentions).toBeUndefined();
+    expect(callArgs.content).not.toMatch(/\u200B/);
 
     // Anti-régression : pas de spoiler wrapping
     expect(callArgs.content).not.toMatch(/^\s*\|/);
@@ -174,12 +180,14 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
 
     expect(sendSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: '<@\u200B!v-1> tu me vois pas',
+        content: '<@v-1> tu me vois pas',
+        flags: 4096,
+        allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
       })
     );
   });
 
-  it("utilise le format role <@&\\u200BID> si la cible est un Role", async () => {
+  it("utilise le format role <@&ID> si la cible est un Role", async () => {
     const r = new CommandRegistry();
     registerTroll(r);
 
@@ -206,7 +214,9 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
 
     expect(sendSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        content: '<@&\u200Brole-1>',
+        content: '<@&role-1>',
+        flags: 4096,
+        allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
       })
     );
   });
@@ -347,7 +357,7 @@ describe('Invisible ping — /troll invisibleping (slash)', () => {
 });
 
 describe('Invisible ping — context menu USER "Invisible Ping"', () => {
-  it('envoie le payload ZWSP via le selfbot (pas App Bot), SANS spoiler, SANS flags:4096', async () => {
+  it('envoie le payload silent mention via le selfbot (pas App Bot), flags:4096 + allowed_mentions vide', async () => {
     const r = new CommandRegistry();
     registerSpy(r);
 
@@ -372,12 +382,13 @@ describe('Invisible ping — context menu USER "Invisible Ping"', () => {
     await r.dispatchUserContextMenu(i, ctx);
 
     expect(sendSpy).toHaveBeenCalledWith({
-      content: '<@\u200B!victim-1>',
+      content: '<@victim-1>',
+      allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
+      flags: 4096,
     });
 
     const callArgs = sendSpy.mock.calls[0][0];
-    expect(callArgs.flags).toBeUndefined();
-    expect(callArgs.allowed_mentions).toBeUndefined();
+    expect(callArgs.content).not.toMatch(/\u200B/);
     expect(callArgs.content).not.toMatch(/^\|/);
     expect(callArgs.content).not.toMatch(/\|\|$/);
   });
