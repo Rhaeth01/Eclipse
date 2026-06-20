@@ -625,14 +625,32 @@ export class DiscordManager extends EventEmitter {
   }
 
   private handleMessageUpdate(oldMsg: IMessage, newMsg: IMessage): void {
-    if (!oldMsg.author || oldMsg.author.bot || oldMsg.content === newMsg.content) return;
+    if (!oldMsg.author || oldMsg.author.bot) return;
+    if (oldMsg.content === newMsg.content) return;
 
+    // editsnipe cache — alimenté avec le VRAI old content (depuis le message
+    // cache de DiscordUserClient, qui distingue old/new correctement).
     if (oldMsg.channel.id) {
       this.editsnipeCache.set(oldMsg.channel.id, {
         oldContent: oldMsg.content || '[Contenu illisible]',
         author: oldMsg.author.tag,
         timestamp: Date.now()
       });
+    }
+
+    // Spy : notifier si la cible est surveillée dans ce serveur.
+    // Couvre aussi le cas "self-edit" où l'auteur du message est le selfbot
+    // lui-même (rare, mais supporté via ctx.spyService).
+    const userGuilds = this.spyService.getUserGuilds(oldMsg.author.id);
+    const isSpiedHere = userGuilds && oldMsg.guild && userGuilds.has(oldMsg.guild.id);
+    if (isSpiedHere) {
+      const oldPreview = (oldMsg.content || '').slice(0, 200);
+      const newPreview = (newMsg.content || '').slice(0, 200);
+      this.broadcastNotification(
+        'spy_edited',
+        `${oldMsg.author.tag} a édité un message dans #${oldMsg.channel.name || 'DM'}\nAvant: "${oldPreview}"\nAprès: "${newPreview}"`,
+        '✏️ Message édité (Cible)'
+      );
     }
   }
 

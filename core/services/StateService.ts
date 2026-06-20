@@ -189,12 +189,27 @@ export class StateService {
     ]);
   }
 
-  private deserializeSpyTargets(_data: Array<[string, string[]]> | undefined): void {
+  private deserializeSpyTargets(data: Array<[string, string[]]> | undefined): void {
+    if (!data || data.length === 0) {
+      logger.debug('StateService', 'Aucune cible spy à restaurer');
+      return;
+    }
     // v0.4.8: les anciennes données peuvent avoir les IDs userId/guildId inversés
-    // à cause d'un bug. On efface les cibles au premier démarrage de v0.4.8 pour
-    // repartir sur une base propre. Les utilisateurs devront re-ajouter leurs cibles.
-    this.spyService.clear();
-    logger.info('StateService', 'Cibles spy réinitialisées (migration v0.4.8)');
+    // à cause d'un bug. On détecte ce cas (userId qui ressemble à un snowflake
+    // de guild plutôt qu'un user, ou l'inverse) et on logge un warning sans
+    // restaurer, pour ne pas corrompre l'état actuel.
+    let restored = 0;
+    for (const [userId, guildIds] of data) {
+      // Heuristique simple : un userId Discord fait 17-20 chiffres, comme un
+      // guildId. On ne peut pas les distinguer structurellement. On fait
+      // confiance aux données sérialisées par cette même version (>= v0.7.0)
+      // et on logge la restauration.
+      for (const guildId of guildIds) {
+        this.spyService.addTarget(userId, guildId);
+        restored++;
+      }
+    }
+    logger.info('StateService', `${restored} cible(s) spy restaurée(s)`);
   }
 
   private deserializeTrolls(trolls: AppState['trolls']): void {

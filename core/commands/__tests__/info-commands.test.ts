@@ -417,3 +417,199 @@ describe('Info commands — runtime', () => {
     });
   });
 });
+
+/**
+ * Tests de la nouvelle source de données selfbot.
+ * Avant le fix, /info serverinfo utilisait `interaction.client.guilds.cache`
+ * (App Bot) et échouait si l'App Bot n'était pas membre du serveur.
+ * /info avatar utilisait `user.displayAvatarURL()` (global) au lieu de
+ * `member.displayAvatarURL()` (serveur).
+ * Maintenant, les deux passent par `ctx.dm.selfbot` en priorité.
+ */
+
+describe('Info commands — selfbot data source', () => {
+  describe('/info serverinfo — fallback selfbot', () => {
+    it('fetch depuis selfbot quand interaction.guild est null (App Bot pas dans le serveur)', async () => {
+      const r = new CommandRegistry();
+      registerInfo(r);
+
+      // Selfbot a le guild dans son cache, App Bot ne l'a pas
+      const selfbotGuild = {
+        id: 'g-1',
+        name: 'SelfbotOnly Server',
+        memberCount: 42,
+        ownerId: 'owner-1',
+        iconURL: () => 'https://cdn.discordapp.com/icons/g-1/abc.png',
+        createdTimestamp: Date.parse('2020-01-01'),
+        channels: { cache: new Map() },
+      };
+      const ctx = makeMockCtx({
+        dm: {
+          selfbot: {
+            guilds: { cache: new Map([['g-1', selfbotGuild]]) },
+            user: { id: 'self-1' },
+          },
+        } as any,
+      });
+
+      const i = makeChatInput({
+        commandName: 'info',
+        subcommand: 'serverinfo',
+      });
+      (i as any).guild = null;
+      (i as any).guildId = 'g-1';
+      (i as any).client = { guilds: { cache: new Map() } };
+      (i.options.getString as any) = vi.fn().mockReturnValue(null);
+
+      await r.dispatch(i, ctx);
+
+      const arg = (i.reply as any).mock.calls[0][0];
+      expect(arg.embeds[0].data.title).toContain('SelfbotOnly Server');
+      const fieldNames = (arg.embeds[0].data.fields || []).map((f: any) => f.name);
+      expect(fieldNames).toContain('ID');
+      expect(fieldNames).toContain('Membres');
+      // Anti-régression : pas d'erreur "Serveur introuvable"
+      expect(arg.content).toBeUndefined();
+    });
+
+    it("rejette quand ni selfbot ni App Bot n'ont le guild", async () => {
+      const r = new CommandRegistry();
+      registerInfo(r);
+      const ctx = makeMockCtx({
+        dm: {
+          selfbot: { guilds: { cache: new Map() }, user: { id: 'self-1' } },
+        } as any,
+      });
+
+      const i = makeChatInput({
+        commandName: 'info',
+        subcommand: 'serverinfo',
+      });
+      (i as any).guild = null;
+      (i as any).guildId = 'g-unknown';
+      (i as any).client = { guilds: { cache: new Map() } };
+      (i.options.getString as any) = vi.fn().mockReturnValue('g-unknown');
+
+      await r.dispatch(i, ctx);
+
+      const arg = (i.reply as any).mock.calls[0][0];
+      expect(arg.content).toContain('Serveur introuvable');
+      expect(arg.ephemeral).toBe(true);
+    });
+  });
+
+  describe('/info avatar — server avatar vs global', () => {
+    it('utilise member.displayAvatarURL quand le selfbot a un member avec avatar serveur', async () => {
+      const r = new CommandRegistry();
+      registerInfo(r);
+
+      const user = makeUser({ id: 'u-1', tag: 'Alice#0000' });
+      // User global avatar (ce qu'on aurait sans member)
+      user.displayAvatarURL = vi.fn().mockReturnValue('https://global-avatar.png');
+
+      // Member selfbot avec avatar serveur
+      const memberInSelfbot = {
+        id: 'u-1',
+        displayAvatarURL: vi.fn().mockReturnValue('https://server-avatar.png'),
+        joinedTimestamp: null,
+        roles: { cache: new Map() },
+      };
+
+      const ctx = makeMockCtx({
+        dm: {
+          selfbot: {
+            guilds: {
+              cache: new Map([
+                ['g-1', { members: { cache: new Map([['u-1', memberInSelfbot]]) } }],
+              ]),
+            },
+            user: { id: 'self-1' },
+          },
+        } as any,
+      });
+
+      const i = makeChatInput({
+        commandName: 'info',
+        subcommand: 'avatar',
+        user,
+      });
+      (i as any).guildId = 'g-1';
+
+      await r.dispatch(i, ctx);
+
+      const arg = (i.reply as any).mock.calls[0][0];
+      // Anti-régression : on utilise l'avatar SERVEUR, pas l'avatar global
+      expect(arg.embeds[0].data.image.url).toBe('https://server-avatar.png');
+      expect(arg.embeds[0].data.footer?.text).toContain('Avatar spécifique');
+    });
+
+    it('fallback sur user.displayAvatarURL si le member selfbot n\'a pas d\'avatar serveur', async () => {
+      const r = new CommandRegistry();
+      registerInfo(r);
+
+      const user = makeUser({ id: 'u-1', tag: 'Alice#0000' });
+      user.displayAvatarURL = vi.fn().mockReturnValue('https://global-avatar.png');
+
+      // Member selfbot sans avatar serveur (displayAvatarURL retourne '')
+      const memberInSelfbot = {
+        id: 'u-1',
+        displayAvatarURL: vi.fn().mockReturnValue(''),
+        joinedTimestamp: null,
+        roles: { cache: new Map() },
+      };
+
+      const ctx = makeMockCtx({
+        dm: {
+          selfbot: {
+            guilds: {
+              cache: new Map([
+                ['g-1', { members: { cache: new Map([['u-1', memberInSelfbot]]) } }],
+              ]),
+            },
+            user: { id: 'self-1' },
+          },
+        } as any,
+      });
+
+      const i = makeChatInput({
+        commandName: 'info',
+        subcommand: 'avatar',
+        user,
+      });
+      (i as any).guildId = 'g-1';
+
+      await r.dispatch(i, ctx);
+
+      const arg = (i.reply as any).mock.calls[0][0];
+      // Fallback sur l'avatar global
+      expect(arg.embeds[0].data.image.url).toBe('https://global-avatar.png');
+      // Pas de footer "Avatar spécifique"
+      expect(arg.embeds[0].data.footer?.text).toBeUndefined();
+    });
+
+    it("utilise user.displayAvatarURL si le selfbot n'est pas dans le guild", async () => {
+      const r = new CommandRegistry();
+      registerInfo(r);
+
+      const user = makeUser({ id: 'u-1', tag: 'Alice#0000' });
+      user.displayAvatarURL = vi.fn().mockReturnValue('https://global-avatar.png');
+
+      // Selfbot déconnecté (pas dans le guild)
+      const ctx = makeMockCtx({
+        dm: { selfbot: null } as any,
+      });
+
+      const i = makeChatInput({
+        commandName: 'info',
+        subcommand: 'avatar',
+        user,
+      });
+      (i as any).guildId = 'g-1';
+
+      await r.dispatch(i, ctx);
+
+      const arg = (i.reply as any).mock.calls[0][0];
+      expect(arg.embeds[0].data.image.url).toBe('https://global-avatar.png');
+    });
+  });
+});

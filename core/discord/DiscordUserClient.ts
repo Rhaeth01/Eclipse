@@ -65,6 +65,19 @@ export class DiscordUserClient
   private friendCache = new Map<string, any>();
   private memberCache = new Map<string, Map<string, IGuildMember>>();
   private channelPermissions = new Map<string, number>();
+  // Cache des messages vus, indexé par messageId → IMessage. Alimenté sur
+  // MESSAGE_CREATE, consulté sur MESSAGE_DELETE/MESSAGE_UPDATE pour fournir
+  // les vraies données (author/content/mentions) que Discord ne renvoie pas
+  // dans l'event de suppression, et l'ancien contenu pour les éditions.
+  // Limite LRU simple : 5000 messages max, on drop les plus anciens (FIFO).
+  private messageCache = new Map<string, IMessage>();
+  private static readonly MESSAGE_CACHE_MAX = 5000;
+  // Cache des voice states précédents, indexé par `${userId}:${guildId}` →
+  // IVoiceState. Permet d'émettre (oldState, newState) avec deux objets
+  // distincts pour que DiscordManager puisse détecter join/leave/move.
+  // Limite : 2000 entrées (utilisateurs uniques par guilde).
+  private voiceStateCache = new Map<string, IVoiceState>();
+  private static readonly VOICE_STATE_CACHE_MAX = 2000;
 
   constructor(properties: GatewayProperties) {
     super();
@@ -259,18 +272,48 @@ export class DiscordUserClient
       this.userCache.set(msg.author.id, msg.author);
     }
 
+    // Alimenter le message cache (LRU simple : on insère puis on tronque
+    // si on dépasse MESSAGE_CACHE_MAX, en supprimant les plus anciens).
+    this.messageCache.set(msg.id, msg);
+    if (this.messageCache.size > DiscordUserClient.MESSAGE_CACHE_MAX) {
+      const oldestKey = this.messageCache.keys().next().value;
+      if (oldestKey !== undefined) this.messageCache.delete(oldestKey);
+    }
+
     this.emit("messageCreate", msg);
   }
 
   private handleMessageUpdate(data: any): void {
-    // Discord envoie le message complet comme MESSAGE_UPDATE (pas juste delta)
-    // On simule le comportement discord.js: on passe le meme objet comme old et new
-    const msg = this.buildMessage(data);
-    if (!msg) return;
-    this.emit("messageUpdate", msg, msg);
+    const newMsg = this.buildMessage(data);
+    if (!newMsg) return;
+    // Lookup dans le cache pour le VRAI old message (author/content/mentions
+    // de l'état pré-édition). Sans ça, DiscordManager.handleMessageUpdate
+    // comparait newMsg.content === newMsg.content (toujours vrai) et
+    // l'editsnipe ne se peuplait jamais.
+    const cachedOld = this.messageCache.get(newMsg.id);
+    const oldMsg: IMessage = cachedOld
+      ? cachedOld
+      : newMsg; // pas de cache → fallback (rare, message créé sur un autre process)
+
+    // Update le cache avec le nouveau contenu
+    this.messageCache.set(newMsg.id, newMsg);
+
+    this.emit("messageUpdate", oldMsg, newMsg);
   }
 
   private handleMessageDelete(data: any): void {
+    // Discord envoie uniquement {id, channel_id, guild_id} sur MESSAGE_DELETE.
+    // Avant ce fix, buildMessage produisait un message avec author.id="0" et
+    // content="", rendant le snipe inutilisable et spy_deleted inopérant.
+    // On lookup le message dans le cache pour récupérer les vraies données.
+    const cached = this.messageCache.get(data.id);
+    if (cached) {
+      this.messageCache.delete(data.id);
+      this.emit("messageDelete", cached);
+      return;
+    }
+    // Fallback : on émet quand même avec les données limitées (MESSAGE_DELETE
+    // brut) pour ne pas perdre l'event si le message n'a jamais été vu.
     const msg = this.buildMessage(data);
     if (!msg) return;
     this.emit("messageDelete", msg);
@@ -292,14 +335,39 @@ export class DiscordUserClient
         }
       : null;
 
-    const state: IVoiceState = {
+    const newState: IVoiceState = {
       member,
       channel,
       channelId: data.channel_id,
       guild: { id: data.guild_id || "0" },
     };
 
-    this.emit("voiceStateUpdate", state, state);
+    // Lookup du précédent voice state pour cet user dans ce guild.
+    // Clé composite userId:guildId pour gérer le cas où un user est dans
+    // plusieurs guildes simultanément.
+    const cacheKey = `${data.user_id || member?.id}:${data.guild_id || "0"}`;
+    const cachedOld = this.voiceStateCache.get(cacheKey);
+
+    // Si pas de cache (première mise à jour pour cet user), on construit un
+    // oldState "vide" (channelId = undefined) → DiscordManager verra ça
+    // comme un "join" si newState.channelId est défini, ou ignorera.
+    const oldState: IVoiceState = cachedOld
+      ? cachedOld
+      : {
+          member,
+          channel: null,
+          channelId: undefined,
+          guild: { id: data.guild_id || "0" },
+        };
+
+    // Update le cache avec le nouveau state
+    this.voiceStateCache.set(cacheKey, newState);
+    if (this.voiceStateCache.size > DiscordUserClient.VOICE_STATE_CACHE_MAX) {
+      const oldestKey = this.voiceStateCache.keys().next().value;
+      if (oldestKey !== undefined) this.voiceStateCache.delete(oldestKey);
+    }
+
+    this.emit("voiceStateUpdate", oldState, newState);
   }
 
   private handleGuildCreate(data: any): void {

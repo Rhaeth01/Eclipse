@@ -10,9 +10,16 @@ export function registerInfo(registry: CommandRegistry): void {
       name: 'userinfo',
       description: 'Infos utilisateur',
       build: s => s.addUserOption(o => o.setName('cible').setDescription('Cible').setRequired(false)),
-      async execute(interaction) {
+      async execute(interaction, ctx) {
         const target = interaction.options.getUser('cible') || interaction.user;
-        const member = interaction.guild?.members.cache.get(target.id);
+        // Source selfbot prioritaire (complète), fallback App Bot si selfbot
+        // déconnecté ou pas dans le guild. Le selfbot a son propre cache
+        // guild + members, indépendant de l'App Bot.
+        const selfbotGuild = interaction.guildId
+          ? ctx.dm.selfbot?.guilds?.cache?.get(interaction.guildId)
+          : null;
+        const member = selfbotGuild?.members?.cache?.get(target.id)
+          ?? interaction.guild?.members?.cache?.get(target.id);
         const embed = new EmbedBuilder()
           .setTitle(`👤 ${target.tag}`)
           .setThumbnail(target.displayAvatarURL())
@@ -36,12 +43,26 @@ export function registerInfo(registry: CommandRegistry): void {
       name: 'avatar',
       description: 'Avatar utilisateur',
       build: s => s.addUserOption(o => o.setName('cible').setDescription('Cible').setRequired(false)),
-      async execute(interaction) {
+      async execute(interaction, ctx) {
         const target = interaction.options.getUser('cible') || interaction.user;
+        // Avatar serveur (member.displayAvatarURL) prioritaire sur l'avatar
+        // global (user.displayAvatarURL). member.displayAvatarURL retourne
+        // déjà l'avatar global si l'user n'a pas d'avatar serveur.
+        const selfbotGuild = interaction.guildId
+          ? ctx.dm.selfbot?.guilds?.cache?.get(interaction.guildId)
+          : null;
+        const member = selfbotGuild?.members?.cache?.get(target.id);
+        const serverAvatar = member?.displayAvatarURL?.({ size: 4096 });
+        const avatarUrl = serverAvatar && serverAvatar.length > 0
+          ? serverAvatar
+          : target.displayAvatarURL({ size: 4096 });
         const embed = new EmbedBuilder()
           .setTitle(`🖼️ Avatar de ${target.tag}`)
-          .setImage(target.displayAvatarURL({ size: 4096 }))
+          .setImage(avatarUrl)
           .setColor(0x5865F2);
+        if (serverAvatar && serverAvatar.length > 0) {
+          embed.setFooter({ text: 'Avatar spécifique à ce serveur' });
+        }
         await interaction.reply({ embeds: [embed], ephemeral: true });
       },
     },
@@ -50,7 +71,7 @@ export function registerInfo(registry: CommandRegistry): void {
       name: 'serverinfo',
       description: 'Infos du serveur',
       build: s => s.addStringOption(o => o.setName('guild_id').setDescription('ID du serveur (requis en DM)').setRequired(false)),
-      async execute(interaction) {
+      async execute(interaction, ctx) {
         const targetGuildId =
           interaction.options.getString('guild_id') ||
           interaction.guildId ||
@@ -59,21 +80,28 @@ export function registerInfo(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ ID du serveur requis en DM.', ephemeral: true });
           return;
         }
-        // v0.6.0: préfère interaction.guild (résolu par Discord pour la commande)
-        // puis tombe sur le cache de l'App Bot. Avant, on n'utilisait que
-        // interaction.client.guilds.cache, ce qui faisait échouer la commande
-        // dans les serveurs où l'App Bot n'est pas membre (selfbot-only).
-        const guild =
-          interaction.guild?.id === targetGuildId
-            ? interaction.guild
-            : interaction.client?.guilds?.cache?.get?.(targetGuildId);
+        // Ordre de priorité pour fetch le guild :
+        // 1. interaction.guild si l'ID matche (résolu par Discord pour la cmd)
+        // 2. ctx.dm.selfbot.guilds.cache → marche même si l'App Bot n'est PAS
+        //    dans le serveur (cas typique d'un selfbot-only server)
+        // 3. interaction.client.guilds.cache (App Bot) en dernier recours
+        let guild = null;
+        if (interaction.guild?.id === targetGuildId) {
+          guild = interaction.guild;
+        }
         if (!guild) {
-          await interaction.reply({ content: '❌ Serveur introuvable.', ephemeral: true });
+          guild = ctx.dm.selfbot?.guilds?.cache?.get(targetGuildId);
+        }
+        if (!guild) {
+          guild = interaction.client?.guilds?.cache?.get?.(targetGuildId);
+        }
+        if (!guild) {
+          await interaction.reply({ content: '❌ Serveur introuvable (ni le selfbot ni l\'App Bot ne le connaissent).', ephemeral: true });
           return;
         }
         const embed = new EmbedBuilder()
           .setTitle(`🏰 ${guild.name}`)
-          .setThumbnail(guild.iconURL())
+          .setThumbnail(guild.iconURL() ?? null)
           .addFields(
             { name: 'ID', value: guild.id, inline: true },
             { name: 'Membres', value: `${guild.memberCount}`, inline: true },
@@ -111,19 +139,23 @@ export function registerInfo(registry: CommandRegistry): void {
       description: 'Infos sur un rôle',
       build: s => s.addRoleOption(o => o.setName('role').setDescription('Rôle').setRequired(true)),
       contexts: [0],
-      async execute(interaction) {
+      async execute(interaction, ctx) {
         const role = interaction.options.getRole('role');
         if (!role) {
           await interaction.reply({ content: '❌ Rôle requis.', ephemeral: true });
           return;
         }
+        // Le member count vient du role résolu par l'App Bot. Le selfbot
+        // n'a pas de cache members par rôle (son cache est user-based, pas
+        // role-based) — donc on garde l'App Bot pour ce champ spécifique.
+        const memberCount = (role as any).members?.size ?? '?';
         const embed = new EmbedBuilder()
           .setTitle(`🛡️ ${role.name}`)
           .addFields(
             { name: 'ID', value: role.id, inline: true },
             { name: 'Couleur', value: `#${(role as any).color?.toString(16).padStart(6, '0') || '000000'}`, inline: true },
             { name: 'Position', value: `${(role as any).position ?? '?'}`, inline: true },
-            { name: 'Membres', value: `${(role as any).members?.size ?? '?'}`, inline: true }
+            { name: 'Membres', value: `${memberCount}`, inline: true }
           )
           .setColor((role as any).color || 0x5865F2);
         await interaction.reply({ embeds: [embed], ephemeral: true });
@@ -135,17 +167,20 @@ export function registerInfo(registry: CommandRegistry): void {
       description: 'Infos sur un salon',
       build: s => s.addChannelOption(o => o.setName('salon').setDescription('Salon').setRequired(true)),
       contexts: [0],
-      async execute(interaction) {
+      async execute(interaction, ctx) {
         const channel = interaction.options.getChannel('salon') as any;
         if (!channel) {
           await interaction.reply({ content: '❌ Salon requis.', ephemeral: true });
           return;
         }
+        // Selfbot cache prioritaire pour le type de salon (peut être plus précis)
+        const selfbotChannel = ctx.dm.selfbot?.channels?.cache?.get?.(channel.id);
+        const channelType = selfbotChannel?.type ?? channel.type;
         const embed = new EmbedBuilder()
           .setTitle(`💬 ${channel.name}`)
           .addFields(
             { name: 'ID', value: channel.id, inline: true },
-            { name: 'Type', value: `${channel.type}`, inline: true },
+            { name: 'Type', value: `${channelType}`, inline: true },
             { name: 'Catégorie', value: channel.parent ? `<#${channel.parent.id}>` : 'Aucune', inline: true },
             { name: 'Créé le', value: `<t:${Math.floor((channel.createdTimestamp || 0) / 1000)}:R>`, inline: true }
           )
@@ -158,13 +193,17 @@ export function registerInfo(registry: CommandRegistry): void {
       name: 'servericon',
       description: 'Icône du serveur',
       contexts: [0],
-      async execute(interaction) {
+      async execute(interaction, ctx) {
         const guild = interaction.guild;
         if (!guild) {
           await interaction.reply({ content: '❌ Serveur uniquement.', ephemeral: true });
           return;
         }
-        const icon = guild.iconURL({ size: 4096 });
+        // Selfbot cache prioritaire pour l'icône (peut être plus récent que
+        // l'App Bot si le selfbot a vu passer un GUILD_UPDATE plus récent).
+        const selfbotGuild = ctx.dm.selfbot?.guilds?.cache?.get?.(guild.id);
+        const icon = selfbotGuild?.iconURL?.()
+          ?? guild.iconURL({ size: 4096 });
         if (!icon) {
           await interaction.reply({ content: '❌ Ce serveur n\'a pas d\'icône.', ephemeral: true });
           return;
@@ -178,9 +217,17 @@ export function registerInfo(registry: CommandRegistry): void {
       name: 'banner',
       description: 'Bannière d\'un utilisateur',
       build: s => s.addUserOption(o => o.setName('cible').setDescription('Cible').setRequired(false)),
-      async execute(interaction) {
+      async execute(interaction, ctx) {
         const target = interaction.options.getUser('cible') || interaction.user;
-        const banner = (target as any).bannerURL?.({ size: 4096 }) ?? null;
+        // Le banner est sur l'User, pas le Member. On essaie le cache selfbot
+        // d'abord (peut être plus complet) puis fallback App Bot.
+        const selfbotUser = ctx.dm.selfbot?.users?.cache?.get?.(target.id);
+        const selfbotBanner = selfbotUser && (selfbotUser as any).bannerURL
+          ? (selfbotUser as any).bannerURL({ size: 4096 })
+          : null;
+        const banner = selfbotBanner
+          ?? (target as any).bannerURL?.({ size: 4096 })
+          ?? null;
         if (!banner) {
           await interaction.reply({ content: `❌ ${target.tag} n'a pas de bannière.`, ephemeral: true });
           return;
