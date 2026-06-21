@@ -35,6 +35,7 @@ export interface UseWebSocketOptions {
   onError?: (message: string) => void;
   onMessage?: (data: any) => void;
   onSetupProgress?: (data: { step: string; message: string; token?: string; authorizeUrl?: string; error?: string }) => void;
+  onStateRestored?: (state: { stealthMode: boolean; silentTyping: boolean }) => void;
 }
 
 export interface UseWebSocketReturn {
@@ -214,7 +215,10 @@ export function useWebSocket(options: UseWebSocketOptions): UseWebSocketReturn {
 
   const handleStatus = useCallback((data: StatusMessage) => {
     addLog(`[Status] ${data.message}`, 'info');
-  }, [addLog]);
+    if (data.message === 'state_restored' && typeof data.silentTyping === 'boolean' && typeof data.stealthMode === 'boolean') {
+      options.onStateRestored?.({ stealthMode: data.stealthMode, silentTyping: data.silentTyping });
+    }
+  }, [addLog, options]);
 
   const handleError = useCallback((data: ErrorMessage) => {
     addLog(`[Erreur] ${data.message}`, 'error');

@@ -252,7 +252,7 @@ describe('CommandRegistry — dispatch()', () => {
     const r = new CommandRegistry();
     const i = makeChatInput({ commandName: 'unknown' });
     await r.dispatch(i, dummyCtx);
-    expect(i.reply).toHaveBeenCalledWith(expect.objectContaining({ content: expect.stringMatching(/inconnue/i) }));
+    expect(i.reply).toHaveBeenCalledWith(expect.objectContaining({ embeds: expect.any(Array), ephemeral: true }));
   });
 
   it('répond "sous-commande inconnue" si sub manquant', async () => {

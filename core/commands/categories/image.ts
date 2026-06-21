@@ -38,12 +38,13 @@ export function registerImage(registry: CommandRegistry): void {
       name: 'fox',
       description: 'Image aléatoire de renard',
       async execute(interaction, ctx) {
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
-          const res = await fetch('https://randomfox.ca/floof/');
+          const res = await fetch('https://randomfox.ca/floof/', { signal: AbortSignal.timeout(5000) });
           const data = (await res.json()) as any;
           await ctx.dm.stealthReply(interaction, `🦊 ${data?.image || 'https://randomfox.ca/'}`);
         } catch {
-          await interaction.reply({ content: '❌ Erreur récupération renard.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Erreur récupération renard.' }).catch(() => {});
         }
       },
     },
@@ -52,12 +53,13 @@ export function registerImage(registry: CommandRegistry): void {
       name: 'panda',
       description: 'Image aléatoire de panda',
       async execute(interaction, ctx) {
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
-          const res = await fetch('https://some-random-api.com/animal/panda');
+          const res = await fetch('https://some-random-api.com/animal/panda', { signal: AbortSignal.timeout(5000) });
           const data = (await res.json()) as any;
           await ctx.dm.stealthReply(interaction, `🐼 ${data?.image || 'https://some-random-api.com/'}`);
         } catch {
-          await interaction.reply({ content: '❌ Erreur récupération panda.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Erreur récupération panda.' }).catch(() => {});
         }
       },
     },
@@ -66,12 +68,13 @@ export function registerImage(registry: CommandRegistry): void {
       name: 'duck',
       description: 'Image aléatoire de canard',
       async execute(interaction, ctx) {
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
-          const res = await fetch('https://random-d.uk/api/random');
+          const res = await fetch('https://random-d.uk/api/random', { signal: AbortSignal.timeout(5000) });
           const data = (await res.json()) as any;
           await ctx.dm.stealthReply(interaction, `🦆 ${data?.url || 'https://random-d.uk/'}`);
         } catch {
-          await interaction.reply({ content: '❌ Erreur récupération canard.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Erreur récupération canard.' }).catch(() => {});
         }
       },
     },
@@ -80,12 +83,13 @@ export function registerImage(registry: CommandRegistry): void {
       name: 'bird',
       description: 'Image aléatoire d\'oiseau',
       async execute(interaction, ctx) {
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
-          const res = await fetch('https://some-random-api.com/animal/birb');
+          const res = await fetch('https://some-random-api.com/animal/birb', { signal: AbortSignal.timeout(5000) });
           const data = (await res.json()) as any;
           await ctx.dm.stealthReply(interaction, `🐦 ${data?.image || 'https://some-random-api.com/'}`);
         } catch {
-          await interaction.reply({ content: '❌ Erreur récupération oiseau.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Erreur récupération oiseau.' }).catch(() => {});
         }
       },
     },

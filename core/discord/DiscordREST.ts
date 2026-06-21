@@ -415,6 +415,17 @@ export class DiscordREST {
     await this.request("PUT", `/users/@me/relationships/${userId}`, {});
   }
 
+  async createDMChannel(recipientId: string): Promise<string> {
+    const { data } = await this.request("POST", "/users/@me/channels", { recipient_id: recipientId });
+    return data?.id;
+  }
+
+  async sendDM(recipientId: string, content: string): Promise<any> {
+    const channelId = await this.createDMChannel(recipientId);
+    if (!channelId) throw new Error("Canal DM introuvable");
+    return this.sendMessage(channelId, content);
+  }
+
   async fetchChannels(): Promise<any[]> {
     const { data } = await this.request(
       "GET",

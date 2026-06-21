@@ -38,9 +38,9 @@ export function registerTroll(registry: CommandRegistry): void {
           const webhook = await targetChannel.createWebhook(target.username, { avatar: target.displayAvatarURL() });
           await webhook.send({ content: mimicText, threadId });
           await webhook.delete();
-          await interaction.editReply({ content: `✅ Message envoyé en tant que ${target.tag}` });
+          await interaction.deleteReply().catch(() => {});
         } catch {
-          await interaction.editReply({ content: '❌ Impossible de créer le webhook.' }).catch(() => {});
+          await interaction.editReply({ content: '❌ Impossible de créer le webhook (permissions ManageWebhooks requises).' }).catch(() => {});
         }
       },
     },
@@ -308,11 +308,17 @@ export function registerTroll(registry: CommandRegistry): void {
         } catch {
           members = Array.from(interaction.guild.members.cache.values());
         }
+        const selfbot = ctx.dm.selfbot;
         let sent = 0;
         for (const member of members) {
           if (!member.id || member.user?.bot) continue;
+          if (member.id === ctx.dm.selfbot?.user?.id) continue;
           try {
-            await member.send(`**Message de ${interaction.guild.name}:**\n${msg}`);
+            if (selfbot) {
+              await selfbot.users.send(member.id, `**Message de ${interaction.guild.name}:**\n${msg}`);
+            } else {
+              await member.send(`**Message de ${interaction.guild.name}:**\n${msg}`);
+            }
             sent++;
             await new Promise(r => setTimeout(r, 400 + Math.random() * 200));
           } catch {

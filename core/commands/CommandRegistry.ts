@@ -37,6 +37,7 @@ import type { AutoSlashService } from '../services/AutoSlashService';
 import type { BackupService } from '../services/BackupService';
 import type { StateService } from '../services/StateService';
 import type { DatabaseService } from '../services/DatabaseService';
+import { eclipseAck } from '../shared/embeds';
 
 // ----------------------------------------------------------------------------
 // Contexte — interface structurelle pour éviter une dépendance circulaire
@@ -319,39 +320,36 @@ export class CommandRegistry {
     // Catégorie avec sous-commandes
     const defs = this.byCategory.get(commandName);
     if (!defs) {
-      await interaction.reply({ content: '❌ Commande inconnue.', ephemeral: true }).catch(() => {});
+      await interaction.reply(eclipseAck('❌ Commande inconnue.', interaction, true)).catch(() => {});
       return;
     }
 
     const group = interaction.options.getSubcommandGroup(false) ?? undefined;
     const sub = interaction.options.getSubcommand(false);
     if (!sub) {
-      await interaction.reply({ content: '❌ Sous-commande manquante.', ephemeral: true }).catch(() => {});
+      await interaction.reply(eclipseAck('❌ Sous-commande manquante.', interaction, true)).catch(() => {});
       return;
     }
 
     const def = defs.find(d => d.name === sub && (d.group ?? undefined) === (group ?? undefined));
     if (!def) {
-      await interaction.reply({ content: '❌ Sous-commande inconnue.', ephemeral: true }).catch(() => {});
+      await interaction.reply(eclipseAck('❌ Sous-commande inconnue.', interaction, true)).catch(() => {});
       return;
     }
 
     try {
       await def.execute(interaction, ctx);
     } catch (err) {
-      // Ne pas laisser une commande crashée faire silencieusement échouer
-      // l'interaction. Log + tentative de message d'erreur générique.
-      // eslint-disable-next-line no-console
       console.error(`[CommandRegistry] Erreur /${commandName}${group ? ' ' + group : ''} ${sub}:`, err);
-      const errContent = { content: '❌ Une erreur est survenue.', ephemeral: true };
+      const errPayload = eclipseAck('❌ Une erreur est survenue.', interaction, true);
       try {
         if (interaction.replied || interaction.deferred) {
-          await interaction.followUp(errContent);
+          await interaction.followUp(errPayload);
         } else {
-          await interaction.reply(errContent);
+          await interaction.reply(errPayload);
         }
       } catch {
-        // L'interaction a peut-être déjà été traitée — on abandonne.
+        // L'interaction a peut-être déjà été traitée
       }
     }
   }
@@ -394,7 +392,7 @@ export class CommandRegistry {
   async dispatchUserContextMenu(interaction: UserContextMenuCommandInteraction, ctx: CommandContext): Promise<void> {
     const def = this.contextMenus.find(m => m.type === 'user' && m.name === interaction.commandName);
     if (!def) {
-      await interaction.reply({ content: '❌ Action inconnue.', ephemeral: true }).catch(() => {});
+      await interaction.reply(eclipseAck('❌ Action inconnue.', interaction, true)).catch(() => {});
       return;
     }
     await def.execute(interaction, ctx);
@@ -404,7 +402,7 @@ export class CommandRegistry {
   async dispatchMessageContextMenu(interaction: MessageContextMenuCommandInteraction, ctx: CommandContext): Promise<void> {
     const def = this.contextMenus.find(m => m.type === 'message' && m.name === interaction.commandName);
     if (!def) {
-      await interaction.reply({ content: '❌ Action inconnue.', ephemeral: true }).catch(() => {});
+      await interaction.reply(eclipseAck('❌ Action inconnue.', interaction, true)).catch(() => {});
       return;
     }
     await def.execute(interaction, ctx);

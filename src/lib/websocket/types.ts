@@ -131,6 +131,8 @@ export interface DiscordReadyMessage extends WsBaseMessage {
 export interface StatusMessage extends WsBaseMessage {
   type: 'status';
   message: string;
+  silentTyping?: boolean;
+  stealthMode?: boolean;
 }
 
 export interface ToastMessage extends WsBaseMessage {

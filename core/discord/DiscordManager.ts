@@ -31,6 +31,7 @@ import { createCommandRegistry, type CommandContext, type CommandRegistry } from
 import { WebSocketService } from '../services/WebSocketService';
 import { rateLimiter } from '../services/RateLimiter';
 import { isRateLimitError, getRetryAfterFromError } from '../utils/rateLimitHeaders';
+import { eclipseAck } from '../shared/embeds';
 
 export interface DiscordConfig {
   userToken: string;
@@ -110,6 +111,9 @@ export class DiscordManager extends EventEmitter {
    */
   setCommandContext(ctx: CommandContext): void {
     this.commandCtx = ctx;
+    if (this.selfbot) {
+      this.selfbot.silentTypingGetter = ctx.getSilentTyping;
+    }
   }
 
   /** Accès au registre (pour /help, UI, introspection). */
@@ -209,6 +213,10 @@ export class DiscordManager extends EventEmitter {
           browser: 'Discord Client',
           device: 'desktop'
     });
+
+    if (this.commandCtx) {
+      this.selfbot.silentTypingGetter = this.commandCtx.getSilentTyping;
+    }
 
     this.setupSelfbotEvents();
 
@@ -480,10 +488,11 @@ export class DiscordManager extends EventEmitter {
    */
   public async safeEphemeralReply(interaction: any, content: string): Promise<void> {
     try {
+      const payload = eclipseAck(content, interaction, content.startsWith('❌'));
       if (interaction.deferred) {
-        await interaction.editReply({ content });
+        await interaction.editReply(payload);
       } else if (!interaction.replied) {
-        await interaction.reply({ content, ephemeral: true });
+        await interaction.reply(payload);
       }
     } catch (e) {
       logger.warn('DiscordManager', 'safeEphemeralReply échoué', e);
@@ -501,31 +510,34 @@ export class DiscordManager extends EventEmitter {
       return await this.sendAsSelfbot(interaction, content, options);
     } catch (err: any) {
       logger.error('DiscordManager', 'stealthReply: envoi stealth via selfbot échoué', err);
-    }
 
-    // Fallback : si le mode furtif est activé, on reste éphémère.
-    // Sinon, le bot répond publiquement pour que la commande reste visible.
-    const ephemeral = this.context.getCommandStealth();
-    try {
-      if (interaction.deferred) {
-        const msg = await interaction.editReply({ content, ...options }).catch(() => { });
-        return msg;
+      // sendAsSelfbot a peut-être déjà deferReply (⌛ éphémère visible).
+      // On supprime le ⌛ puis on envoie un message d'erreur court via followUp.
+      // Le contenu de la commande NE doit JAMAIS fuiter en éphémère permanent.
+      try {
+        if (interaction.deferred) {
+          await interaction.deleteReply().catch(() => { });
+          const errMsg = err?.code === 50001 || err?.code === 50003
+            ? '❌ Selfbot n\'a pas accès à ce canal.'
+            : err?.status === 429
+              ? '❌ Rate limité. Réessaye dans quelques secondes.'
+              : `❌ Selfbot indisponible: ${err?.message ?? err}`;
+          await interaction.followUp({ content: errMsg, ephemeral: true }).catch(() => { });
+        } else if (!interaction.replied) {
+          await interaction.reply({ content: `❌ Selfbot indisponible: ${err?.message ?? err}`, ephemeral: true }).catch(() => { });
+        }
+      } catch (e) {
+        logger.warn('DiscordManager', 'stealthReply: fallback échoué', e);
       }
-      if (!interaction.replied) {
-        const msg = await interaction.reply({ content, ...options, ephemeral }).catch(() => { });
-        return msg;
-      }
-    } catch (e) {
-      logger.warn('DiscordManager', 'stealthReply: fallback échoué', e);
     }
     return null;
   }
 
   private async handleInteraction(interaction: Interaction): Promise<void> {
     // Vérifier que c'est le propriétaire
-    if (this.selfbot?.user && interaction.user.id !== this.selfbot.user.id) {
+    if (!this.selfbot?.user || interaction.user.id !== this.selfbot.user.id) {
       if (interaction.isRepliable()) {
-        await interaction.reply({ content: '❌ Réservé au propriétaire.', ephemeral: true });
+        await interaction.reply(eclipseAck('❌ Réservé au propriétaire.', interaction, true));
       }
       return;
     }
@@ -541,7 +553,7 @@ export class DiscordManager extends EventEmitter {
     // Menus contextuels (user)
     if (interaction.isUserContextMenuCommand()) {
       if (!this.commandCtx) {
-        await interaction.reply({ content: '❌ Contexte non initialisé.', ephemeral: true }).catch(() => { });
+        await interaction.reply(eclipseAck('❌ Contexte non initialisé.', interaction, true)).catch(() => { });
         return;
       }
       logger.info('DiscordManager', `Context Menu (user): ${interaction.commandName}`);
@@ -549,6 +561,11 @@ export class DiscordManager extends EventEmitter {
         await this.commandRegistry.dispatchUserContextMenu(interaction as any, this.commandCtx);
       } catch (err) {
         logger.error('DiscordManager', `Erreur context menu ${interaction.commandName}`, err);
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(eclipseAck('❌ Une erreur est survenue.', interaction, true)).catch(() => { });
+        } else {
+          await interaction.reply(eclipseAck('❌ Une erreur est survenue.', interaction, true)).catch(() => { });
+        }
       }
       return;
     }
@@ -556,7 +573,7 @@ export class DiscordManager extends EventEmitter {
     // Menus contextuels (message)
     if (interaction.isMessageContextMenuCommand()) {
       if (!this.commandCtx) {
-        await interaction.reply({ content: '❌ Contexte non initialisé.', ephemeral: true }).catch(() => { });
+        await interaction.reply(eclipseAck('❌ Contexte non initialisé.', interaction, true)).catch(() => { });
         return;
       }
       logger.info('DiscordManager', `Context Menu (message): ${interaction.commandName}`);
@@ -564,6 +581,11 @@ export class DiscordManager extends EventEmitter {
         await this.commandRegistry.dispatchMessageContextMenu(interaction as any, this.commandCtx);
       } catch (err) {
         logger.error('DiscordManager', `Erreur context menu ${interaction.commandName}`, err);
+        if (interaction.replied || interaction.deferred) {
+          await interaction.followUp(eclipseAck('❌ Une erreur est survenue.', interaction, true)).catch(() => { });
+        } else {
+          await interaction.reply(eclipseAck('❌ Une erreur est survenue.', interaction, true)).catch(() => { });
+        }
       }
       return;
     }
@@ -574,7 +596,7 @@ export class DiscordManager extends EventEmitter {
     logger.info('DiscordManager', `Slash Command: /${commandName}`);
 
     if (!this.commandCtx) {
-      await interaction.reply({ content: '❌ Contexte non initialisé.', ephemeral: true }).catch(() => { });
+      await interaction.reply(eclipseAck('❌ Contexte non initialisé.', interaction, true)).catch(() => { });
       return;
     }
 
@@ -582,11 +604,11 @@ export class DiscordManager extends EventEmitter {
       await this.commandRegistry.dispatch(interaction, this.commandCtx);
     } catch (err) {
       logger.error('DiscordManager', `Erreur commande /${commandName}`, err);
-      const errorContent = { content: '❌ Une erreur est survenue.', ephemeral: true };
+      const errPayload = eclipseAck('❌ Une erreur est survenue.', interaction, true);
       if (interaction.replied || interaction.deferred) {
-        await interaction.followUp(errorContent).catch(() => { });
+        await interaction.followUp(errPayload).catch(() => { });
       } else {
-        await interaction.reply(errorContent).catch(() => { });
+        await interaction.reply(errPayload).catch(() => { });
       }
     }
   }

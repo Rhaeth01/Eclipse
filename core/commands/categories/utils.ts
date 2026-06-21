@@ -1,5 +1,6 @@
 import { EmbedBuilder } from 'discord.js';
 import type { CommandRegistry, SubcommandDef } from '../CommandRegistry';
+import { buildEclipseEmbed, ECLIPSE_COLOR, eclipseAck } from '../../shared/embeds';
 
 export function registerUtils(registry: CommandRegistry): void {
   registry.describeCategory('utils', 'Commandes utilitaires');
@@ -102,15 +103,16 @@ export function registerUtils(registry: CommandRegistry): void {
       async execute(interaction, ctx) {
         const text = interaction.options.getString('texte') || '';
         const lang = (interaction.options.getString('langue') || 'fr').slice(0, 2);
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           const encoded = encodeURIComponent(text);
           const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${lang}&dt=t&q=${encoded}`;
-          const response = await fetch(url);
+          const response = await fetch(url, { signal: AbortSignal.timeout(5000) });
           const data = (await response.json()) as any;
           const translated = data?.[0]?.map((s: any) => s[0]).join('') || text;
           await ctx.dm.stealthReply(interaction, `🌐 **Traduit (→${lang})**: ${translated}`);
         } catch {
-          await interaction.reply({ content: '❌ Erreur de traduction.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Erreur de traduction.' }).catch(() => {});
         }
       },
     },
@@ -122,10 +124,10 @@ export function registerUtils(registry: CommandRegistry): void {
       async execute(interaction) {
         const city = interaction.options.getString('ville') || 'Paris';
         const encoded = encodeURIComponent(city);
-        const embed = new EmbedBuilder()
-          .setTitle(`🌤️ Météo: ${city}`)
-          .setDescription(`https://wttr.in/${encoded}_0pq_lang=fr.png?m`)
-          .setColor(0x5865F2);
+        const embed = buildEclipseEmbed({
+          title: `🌤️ Météo: ${city}`,
+          description: `https://wttr.in/${encoded}_0pq_lang=fr.png?m`,
+        }, interaction);
         await interaction.reply({ embeds: [embed], ephemeral: true });
       },
     },
@@ -137,11 +139,11 @@ export function registerUtils(registry: CommandRegistry): void {
       async execute(interaction) {
         const text = interaction.options.getString('texte') || 'https://eclipse';
         const encoded = encodeURIComponent(text);
-        const embed = new EmbedBuilder()
-          .setTitle('📱 QR Code')
-          .setImage(`https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encoded}`)
-          .setFooter({ text })
-          .setColor(0x5865F2);
+        const embed = buildEclipseEmbed({
+          title: '📱 QR Code',
+          image: `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encoded}`,
+          footerText: text,
+        }, interaction);
         await interaction.reply({ embeds: [embed], ephemeral: true });
       },
     },

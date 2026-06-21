@@ -42,8 +42,16 @@ export function registerScript(registry: CommandRegistry, scriptService: ScriptS
       async execute(interaction, _ctx) {
         const name = interaction.options.getString('nom')!;
         const args = interaction.options.getString('args')?.split(' ') ?? [];
-        const result = await scriptService.run(name, args);
-        await interaction.reply({ content: result, ephemeral: true });
+        await interaction.deferReply({ ephemeral: true });
+        try {
+          const result = await scriptService.run(name, args);
+          await interaction.editReply({ content: result });
+        } catch (err: any) {
+          const msg = err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT'
+            ? `❌ Script \`${name}\` a dépassé le timeout de 5s.`
+            : `❌ Erreur: ${err?.message ?? err}`;
+          await interaction.editReply({ content: msg }).catch(() => {});
+        }
       },
     },
     {

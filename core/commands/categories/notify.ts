@@ -27,15 +27,17 @@ export function registerNotify(registry: CommandRegistry): void {
           await interaction.reply({ content: '🗑️ Webhook de notification effacé. (TODO: persister)', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content: '🔔 Eclipse — webhook de notification configuré.' }),
+            signal: AbortSignal.timeout(5000),
           });
-          await interaction.reply({ content: '✅ Webhook de notification configuré. (TODO: persister)', ephemeral: true });
+          await interaction.editReply({ content: '✅ Webhook de notification configuré. (TODO: persister)' });
         } catch {
-          await interaction.reply({ content: '❌ Webhook invalide ou inaccessible.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Webhook invalide ou inaccessible.' }).catch(() => {});
         }
       },
     },

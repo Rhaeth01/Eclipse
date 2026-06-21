@@ -246,6 +246,14 @@ export class EclipseCore {
     // WebSocket events
     this.wsService.on('clientConnected', (clientId) => {
       logger.info('EclipseCore', `Client UI connecté: ${clientId}`);
+      if (this.discordManager.getSelfbot()?.isReady()) {
+        this.wsService.sendToClient(clientId, {
+          type: 'status',
+          message: 'state_restored',
+          stealthMode: this.commandStealth,
+          silentTyping: this.silentTyping,
+        });
+      }
     });
 
     this.wsService.on('clientDisconnected', (clientId) => {
@@ -308,8 +316,8 @@ export class EclipseCore {
         type: 'status',
         message: 'state_restored',
         stealthMode: this.commandStealth,
-        silentTyping: this.silentTyping
-      } as any);
+        silentTyping: this.silentTyping,
+      });
     } catch (err) {
       logger.error('EclipseCore', 'Erreur restauration etat (mode degrade, defaut applique)', err);
       // Valeurs par défaut déjà en place (stealth=true, silentTyping=false)

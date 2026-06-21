@@ -1,5 +1,5 @@
-import { EmbedBuilder } from 'discord.js';
 import type { CommandRegistry, SubcommandDef, ContextMenuDef } from '../CommandRegistry';
+import { buildEclipseEmbed, ECLIPSE_COLOR, eclipseAck } from '../../shared/embeds';
 import { steps } from '../../shared/constants';
 
 export function registerSpy(registry: CommandRegistry): void {
@@ -81,15 +81,15 @@ export function registerSpy(registry: CommandRegistry): void {
       async execute(interaction, ctx) {
         const snipe = ctx.dm.snipeCache.get(interaction.channelId);
         if (!snipe) {
-          await interaction.reply({ content: '❌ Aucun message à snipe.', ephemeral: true });
+          await interaction.reply(eclipseAck('❌ Aucun message à snipe.', interaction, true));
           return;
         }
-        const embed = new EmbedBuilder()
-          .setTitle('🎯 Message supprimé')
-          .setDescription(snipe.content)
-          .setFooter({ text: `Par ${snipe.author}` })
-          .setTimestamp(snipe.timestamp)
-          .setColor(0x5865F2);
+        const embed = buildEclipseEmbed({
+          title: '🎯 Message supprimé',
+          description: snipe.content,
+          footerText: `Par ${snipe.author}`,
+          timestamp: snipe.timestamp,
+        }, interaction);
         await interaction.reply({ embeds: [embed], ephemeral: true });
       },
     },
@@ -100,15 +100,15 @@ export function registerSpy(registry: CommandRegistry): void {
       async execute(interaction, ctx) {
         const editSnipe = ctx.dm.editsnipeCache.get(interaction.channelId);
         if (!editSnipe) {
-          await interaction.reply({ content: '❌ Aucun message à editsnipe.', ephemeral: true });
+          await interaction.reply(eclipseAck('❌ Aucun message à editsnipe.', interaction, true));
           return;
         }
-        const embed = new EmbedBuilder()
-          .setTitle('✏️ Message édité')
-          .setDescription(editSnipe.oldContent)
-          .setFooter({ text: `Par ${editSnipe.author}` })
-          .setTimestamp(editSnipe.timestamp)
-          .setColor(0x57F287);
+        const embed = buildEclipseEmbed({
+          title: '✏️ Message édité',
+          description: editSnipe.oldContent,
+          footerText: `Par ${editSnipe.author}`,
+          timestamp: editSnipe.timestamp,
+        }, interaction);
         await interaction.reply({ embeds: [embed], ephemeral: true });
       },
     },
@@ -126,6 +126,7 @@ export function registerSpy(registry: CommandRegistry): void {
         await interaction.reply({ content: '❌ Selfbot non connecté.', ephemeral: true });
         return;
       }
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
       try {
         const sbChannel = await ctx.dm.selfbot.channels.fetch(interaction.channelId);
         if (!sbChannel || !sbChannel.isText()) throw new Error('Canal invalide');
@@ -133,10 +134,10 @@ export function registerSpy(registry: CommandRegistry): void {
         if (ghostMsg) {
           await new Promise(r => setTimeout(r, 500 + Math.random() * 1000));
           await ghostMsg.delete().catch(() => {});
-          await interaction.reply({ content: `👻 Ghostping envoyé à ${targetUser.tag}`, ephemeral: true });
+          await interaction.editReply({ content: `👻 Ghostping envoyé à ${targetUser.tag}` }).catch(() => {});
         }
       } catch {
-        await interaction.reply({ content: '❌ Impossible d\'envoyer le ghostping.', ephemeral: true });
+        await interaction.editReply({ content: '❌ Impossible d\'envoyer le ghostping.' }).catch(() => {});
       }
     },
   };
@@ -172,22 +173,18 @@ export function registerSpy(registry: CommandRegistry): void {
         await interaction.reply({ content: '❌ Selfbot non connecté.', ephemeral: true });
         return;
       }
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
       try {
         const sbChannel = await ctx.dm.selfbot.channels.fetch(interaction.channelId);
         if (!sbChannel || !sbChannel.isText()) throw new Error('Canal invalide');
-        // "Invisible ping" (silent mention) : la cible voit le highlight (le
-        // client rend `<@id>` comme @pseudo + couleur mention) mais zéro
-        // notification (flags: 4096 SUPPRESS_NOTIFICATIONS + allowed_mentions
-        // vide). Indétectable par l'anti-spam selfbot contrairement à la
-        // technique ZWSP qui déclenchait une vraie notification.
         await sbChannel.send({
           content: `<@${targetUser.id}>`,
           allowed_mentions: { parse: [], users: [], roles: [], replied_user: false },
           flags: 4096,
         });
-        await interaction.reply({ content: `👻 Mention fantôme envoyée à ${targetUser.tag}`, ephemeral: true });
+        await interaction.editReply({ content: `👻 Mention fantôme envoyée à ${targetUser.tag}` }).catch(() => {});
       } catch {
-        await interaction.reply({ content: "❌ Impossible d'envoyer la mention fantôme.", ephemeral: true });
+        await interaction.editReply({ content: "❌ Impossible d'envoyer la mention fantôme." }).catch(() => {});
       }
     },
   };
@@ -200,21 +197,22 @@ export function registerSpy(registry: CommandRegistry): void {
     async execute(interaction, _ctx) {
       const targetUser = (interaction as any).targetUser;
       const member = interaction.guild?.members?.cache?.get?.(targetUser.id);
-      const embed = new EmbedBuilder()
-        .setTitle(`👤 ${targetUser.tag}`)
-        .setThumbnail(targetUser.displayAvatarURL?.() ?? targetUser.avatarURL?.())
-        .addFields(
-          { name: 'ID', value: targetUser.id, inline: true },
-          { name: 'Créé le', value: `<t:${Math.floor((targetUser.createdTimestamp ?? Date.now()) / 1000)}:R>`, inline: true },
-          { name: 'Bot', value: targetUser.bot ? 'Oui' : 'Non', inline: true }
-        )
-        .setColor(0x5865F2);
+      const fields = [
+        { name: 'ID', value: targetUser.id, inline: true },
+        { name: 'Créé le', value: `<t:${Math.floor((targetUser.createdTimestamp ?? Date.now()) / 1000)}:R>`, inline: true },
+        { name: 'Bot', value: targetUser.bot ? 'Oui' : 'Non', inline: true },
+      ];
       if (member) {
-        embed.addFields(
+        fields.push(
           { name: 'Rejoint le', value: `<t:${Math.floor((member.joinedTimestamp ?? 0) / 1000)}:R>`, inline: true },
-          { name: 'Rôles', value: `${(member.roles?.cache?.size ?? 1) - 1} rôles`, inline: true }
+          { name: 'Rôles', value: `${(member.roles?.cache?.size ?? 1) - 1} rôles`, inline: true },
         );
       }
+      const embed = buildEclipseEmbed({
+        title: `👤 ${targetUser.tag}`,
+        thumbnail: targetUser.displayAvatarURL?.() ?? targetUser.avatarURL?.() ?? null,
+        fields,
+      }, interaction);
       await interaction.reply({ embeds: [embed], ephemeral: true });
     },
   };
@@ -227,13 +225,10 @@ export function registerSpy(registry: CommandRegistry): void {
       const targetUser = (interaction as any).targetUser;
       const url = targetUser.displayAvatarURL?.({ size: 4096 }) ?? targetUser.avatarURL?.({ size: 4096 });
       if (!url) {
-        await interaction.reply({ content: '❌ Avatar introuvable.', ephemeral: true });
+        await interaction.reply(eclipseAck('❌ Avatar introuvable.', interaction, true));
         return;
       }
-      const embed = new EmbedBuilder()
-        .setTitle(`🖼️ Avatar de ${targetUser.tag}`)
-        .setImage(url)
-        .setColor(0x5865F2);
+      const embed = buildEclipseEmbed({ title: `🖼️ Avatar de ${targetUser.tag}`, image: url }, interaction);
       await interaction.reply({ embeds: [embed], ephemeral: true });
     },
   };
@@ -375,17 +370,17 @@ export function registerSpy(registry: CommandRegistry): void {
         await interaction.reply({ content: '❌ Aucun texte à traduire.', ephemeral: true });
         return;
       }
+      await interaction.deferReply({ ephemeral: true }).catch(() => {});
       try {
         const encoded = encodeURIComponent(content);
         const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=fr&dt=t&q=${encoded}`;
-        const res = await fetch(url);
+        const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
         const data = (await res.json()) as any;
         const translated = data?.[0]?.map((s: any) => s[0]).join('') || content;
-        await interaction.reply({ content: `🌐 **Traduit (→fr)**: ${translated}`, ephemeral: true });
+        await ctx.dm.stealthReply(interaction, `🌐 **Traduit (→fr)**: ${translated}`);
       } catch {
-        await interaction.reply({ content: '❌ Erreur de traduction.', ephemeral: true });
+        await interaction.editReply({ content: '❌ Erreur de traduction.' }).catch(() => {});
       }
-      void ctx;
     },
   };
   registry.menu(translateMenu);

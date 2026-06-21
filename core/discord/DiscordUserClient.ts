@@ -30,6 +30,21 @@ function makeTag(username: string, discriminator: string): string {
     : `${username}#${discriminator}`;
 }
 
+/**
+ * Convertit un snowflake Discord en timestamp Unix millisecondes.
+ * Utilise BigInt pour éviter la coercion Int32 du `>>` operator sur les snowflakes
+ * (> Int32, > Number.MAX_SAFE_INTEGER).
+ * Le bug précédent : parseInt(id) >> 22 retournait du garbage + division supplémentaire /4194304.
+ */
+function snowflakeToUnixMs(id: string | undefined | null): number {
+  if (!id) return 0;
+  try {
+    return Number((BigInt(id) >> BigInt(22)) + BigInt(1420070400000));
+  } catch {
+    return 0;
+  }
+}
+
 export class DiscordUserClient
   extends EventEmitter
   implements IDiscordUserClient
@@ -48,9 +63,16 @@ export class DiscordUserClient
     cache: Map<string, IRelationship>;
     friendCount: number;
   };
-  public users: { cache: Map<string, IUser> };
+  public users: { cache: Map<string, IUser>; send: (userId: string, content: string) => Promise<void> };
   public sessionId: string | null = null;
   public options: { ws: { properties: GatewayProperties } };
+
+  /**
+   * Callback pour vérifier le silent typing state. Set par DiscordManager
+   * après initialisation du CommandContext. Quand ce callback retourne true,
+   * channel.sendTyping() est court-circuité (aucun appel REST).
+   */
+  public silentTypingGetter: (() => boolean) | null = null;
 
   private gateway: DiscordGateway;
   private rest: DiscordREST;
@@ -89,7 +111,12 @@ export class DiscordUserClient
       cache: this.guildCache,
       fetch: (guildId: string) => this.fetchGuild(guildId),
     };
-    this.users = { cache: this.userCache };
+    this.users = {
+      cache: this.userCache,
+      send: async (userId: string, content: string) => {
+        await this.rest.sendDM(userId, content);
+      },
+    };
     this.relationships = {
       friendCache: this.friendCache,
       cache: this.relationshipCache,
@@ -192,7 +219,7 @@ export class DiscordUserClient
       username: profile.username,
       bot: false as const,
       tag: makeTag(profile.username, profile.discriminator || "0"),
-      createdTimestamp: 0,
+      createdTimestamp: snowflakeToUnixMs(profile.id),
       displayAvatarURL: (options?: any) => {
         const avatar = profile.avatar;
         if (!avatar) {
@@ -486,9 +513,7 @@ export class DiscordUserClient
       username: raw.username || "Unknown",
       tag: makeTag(raw.username || "Unknown", raw.discriminator || "0"),
       bot: raw.bot || false,
-      createdTimestamp: raw.id
-        ? Math.floor(((parseInt(raw.id) >> 22) + 1420070400000) / 4194304)
-        : 0,
+      createdTimestamp: snowflakeToUnixMs(raw.id),
       displayAvatarURL: (options?: any) => {
         const avatar = raw.avatar;
         if (!avatar) {
@@ -533,6 +558,7 @@ export class DiscordUserClient
         return this.buildMessage({ ...data, channel_id: raw.id, guild_id: raw.guild_id });
       },
       sendTyping: async () => {
+        if (this.silentTypingGetter?.()) return;
         await rest.sendTyping(raw.id);
       },
       permissionsFor: (userId: string) => {
@@ -579,9 +605,7 @@ export class DiscordUserClient
     const guild: IGuild = {
       id: raw.id,
       name: raw.name || "Unknown",
-      createdTimestamp: raw.id
-        ? Math.floor(((parseInt(raw.id) >> 22) + 1420070400000) / 4194304)
-        : 0,
+      createdTimestamp: snowflakeToUnixMs(raw.id),
       iconURL: () => {
         if (!raw.icon) return undefined;
         const ext = raw.icon.startsWith("a_") ? "gif" : "png";
@@ -669,9 +693,7 @@ export class DiscordUserClient
         },
       },
       deletable: raw.author?.id === this.user?.id || false,
-      createdTimestamp: raw.id
-        ? Math.floor(((parseInt(raw.id) >> 22) + 1420070400000) / 4194304)
-        : Date.now(),
+      createdTimestamp: raw.id ? snowflakeToUnixMs(raw.id) : Date.now(),
       embeds: raw.embeds || [],
       components: raw.components || [],
       interaction: raw.interaction

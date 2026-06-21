@@ -94,16 +94,17 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ Membre introuvable.', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           if (member.roles.cache.has(role.id)) {
             await (member.roles as any).remove(role);
-            await ctx.dm.stealthReply(interaction, `🔓 Rôle ${role.name} retiré à ${target.username}`);
+            await interaction.editReply({ content: `🔓 Rôle ${role.name} retiré à ${target.username}` });
           } else {
             await (member.roles as any).add(role);
-            await ctx.dm.stealthReply(interaction, `🔒 Rôle ${role.name} ajouté à ${target.username}`);
+            await interaction.editReply({ content: `🔒 Rôle ${role.name} ajouté à ${target.username}` });
           }
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },
@@ -124,11 +125,12 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ Cible requise (serveur uniquement).', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           await ctx.dm.kickMember(interaction.guild.id, target.id, reason);
-          await interaction.reply({ content: `👢 <@${target.id}> expulsé.`, ephemeral: true });
+          await interaction.editReply({ content: `👢 <@${target.id}> expulsé.` });
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },
@@ -149,11 +151,12 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ Cible requise (serveur uniquement).', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           await ctx.dm.banMember(interaction.guild.id, target.id, reason);
-          await interaction.reply({ content: `🔨 <@${target.id}> banni.`, ephemeral: true });
+          await interaction.editReply({ content: `🔨 <@${target.id}> banni.` });
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },
@@ -173,11 +176,12 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ ID requis (serveur uniquement).', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           await ctx.dm.banMember(interaction.guild.id, id, reason);
-          await interaction.reply({ content: `🔨 <@${id}> banni par ID.`, ephemeral: true });
+          await interaction.editReply({ content: `🔨 <@${id}> banni par ID.` });
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },
@@ -193,11 +197,12 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ ID requis (serveur uniquement).', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           await ctx.dm.unbanMember(interaction.guild.id, id);
-          await interaction.reply({ content: `✅ <@${id}> débanni.`, ephemeral: true });
+          await interaction.editReply({ content: `✅ <@${id}> débanni.` });
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },
@@ -214,11 +219,12 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ Canal invalide.', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           await channel.setRateLimitPerUser(seconds);
-          await interaction.reply({ content: `⏱️ Slowmode: ${seconds}s.`, ephemeral: true });
+          await interaction.editReply({ content: `⏱️ Slowmode: ${seconds}s.` });
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },
@@ -277,12 +283,12 @@ export function registerAdmin(registry: CommandRegistry): void {
         await interaction.deferReply({ ephemeral: true });
         try {
           const pos = channel.position;
-          const name = channel.name;
           const cloned = await channel.clone();
+          await interaction.editReply({ content: '💣 Salon nucléé.' }).catch(() => {});
+          void pos;
           await channel.delete().catch(() => {});
           await cloned.setPosition(pos).catch(() => {});
           await cloned.send('💣 Salon nucléé.').catch(() => {});
-          void name;
         } catch {
           await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
@@ -311,11 +317,12 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ Membre introuvable.', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           await member.timeout(minutes * 60 * 1000, reason);
-          await interaction.reply({ content: `🔇 <@${target.id}> mute ${minutes} min.`, ephemeral: true });
+          await interaction.editReply({ content: `🔇 <@${target.id}> mute ${minutes} min.` });
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },
@@ -336,11 +343,12 @@ export function registerAdmin(registry: CommandRegistry): void {
           await interaction.reply({ content: '❌ Membre introuvable.', ephemeral: true });
           return;
         }
+        await interaction.deferReply({ ephemeral: true }).catch(() => {});
         try {
           await member.timeout(null);
-          await interaction.reply({ content: `🔊 <@${target.id}> unmute.`, ephemeral: true });
+          await interaction.editReply({ content: `🔊 <@${target.id}> unmute.` });
         } catch {
-          await interaction.reply({ content: '❌ Permissions insuffisantes.', ephemeral: true });
+          await interaction.editReply({ content: '❌ Permissions insuffisantes.' }).catch(() => {});
         }
       },
     },

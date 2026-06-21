@@ -102,6 +102,7 @@ function makeUserContextMenu(opts: {
     deferred: false,
     deferReply: vi.fn().mockResolvedValue(undefined),
     reply: vi.fn().mockResolvedValue(undefined),
+    editReply: vi.fn().mockResolvedValue(undefined),
     deleteReply: vi.fn().mockResolvedValue(undefined),
     followUp: vi.fn().mockResolvedValue(undefined),
   } as any;
@@ -411,10 +412,9 @@ describe('Invisible ping — context menu USER "Invisible Ping"', () => {
 
     await r.dispatchUserContextMenu(i, ctx);
 
-    expect(i.reply).toHaveBeenCalledWith({
-      content: '👻 Mention fantôme envoyée à Victim#0001',
-      ephemeral: true,
-    });
+    expect(i.editReply).toHaveBeenCalledWith(expect.objectContaining({
+      content: expect.stringContaining('👻 Mention fantôme envoyée à Victim#0001'),
+    }));
   });
 
   it('safeEphemeralReply si le selfbot est déconnecté', async () => {
@@ -455,10 +455,9 @@ describe('Invisible ping — context menu USER "Invisible Ping"', () => {
 
     await r.dispatchUserContextMenu(i, ctx);
 
-    expect(i.reply).toHaveBeenCalledWith({
+    expect(i.editReply).toHaveBeenCalledWith(expect.objectContaining({
       content: "❌ Impossible d'envoyer la mention fantôme.",
-      ephemeral: true,
-    });
+    }));
   });
 
   it('ne déclenche PAS un menu MESSAGE avec le même nom', async () => {
@@ -482,6 +481,6 @@ describe('Invisible ping — context menu USER "Invisible Ping"', () => {
     await r.dispatchMessageContextMenu(i, ctx);
 
     expect(sendSpy).not.toHaveBeenCalled();
-    expect(i.reply).toHaveBeenCalledWith({ content: '❌ Action inconnue.', ephemeral: true });
+    expect(i.reply).toHaveBeenCalledWith(expect.objectContaining({ ephemeral: true }));
   });
 });

@@ -281,7 +281,7 @@ export interface IDiscordUserClient extends EventEmitter {
     cache: Map<string, IRelationship>;
     friendCount: number;
   };
-  users: { cache: Map<string, IUser> };
+  users: { cache: Map<string, IUser>; send: (userId: string, content: string) => Promise<void> };
   sessionId: string | null;
   options: { ws: { properties: GatewayProperties } };
   isReady(): boolean;

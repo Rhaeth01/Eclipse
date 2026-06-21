@@ -47,6 +47,10 @@ export default function Home() {
     },
     onSetupProgress: (data) => {
       setSetupProgress(data);
+    },
+    onStateRestored: (state) => {
+      setStealthMode(state.stealthMode);
+      setSilentTyping(state.silentTyping);
     }
   });
 
@@ -131,12 +135,11 @@ export default function Home() {
       });
   };
 
+  const [coreStartupError, setCoreStartupError] = useState<string | null>(null);
+
   useEffect(() => {
     const unlisten = listen<string>('core-startup-error', (event) => {
-      toast.error('Core introuvable', {
-        description: event.payload || 'Le backend Node.js n\'a pas pu démarrer.',
-        duration: Infinity
-      });
+      setCoreStartupError(event.payload || 'Le backend Node.js n\'a pas pu démarrer.');
     });
     return () => { unlisten.then(fn => fn()); };
   }, []);
@@ -304,6 +307,12 @@ export default function Home() {
               state={status === 'connected' ? 'connected' : status === 'connecting' ? 'connecting' : 'disconnected'}
               className="mb-6"
             />
+
+            {coreStartupError && (
+              <div className="mb-4 px-4 py-3 rounded-lg bg-[#d4656b]/10 border border-[#d4656b]/30 text-[#d4656b] text-sm">
+                <strong>Core introuvable:</strong> {coreStartupError}
+              </div>
+            )}
 
             <div className="space-y-4">
               {showManualToken && (

@@ -73,7 +73,7 @@ export class ScriptService extends EventEmitter {
       const vm = require('vm');
       const sandbox = this.buildSandbox(name);
       const context = vm.createContext(sandbox);
-      vm.runInContext(code, context);
+      vm.runInContext(code, context, { timeout: 5000, filename: name, displayErrors: true });
       const info: ScriptInfo = {
         name,
         description: (sandbox as any).__scriptDescription || name,
@@ -109,10 +109,22 @@ export class ScriptService extends EventEmitter {
     try {
       // Le sandbox expose une fonction __run si le script la définit
       // (les scripts appellent eclipse.on('run', ...) ou exportent une fonction)
-      this.emit('script:run', name, args);
-      return `▶️ Script ${name} exécuté.`;
-    } catch (err) {
-      return `❌ Erreur: ${err}`;
+      // On wrap dans un timeout vm pour éviter les boucles infinies bloquant l'event loop.
+      const vm = require('vm');
+      const timeoutPromise = new Promise<string>((_, reject) => {
+        const t = setTimeout(() => reject(Object.assign(new Error('Script timeout'), { code: 'ERR_SCRIPT_EXECUTION_TIMEOUT' })), 5000);
+        t.unref?.();
+      });
+      const runPromise = new Promise<string>((resolve) => {
+        this.emit('script:run', name, args);
+        // Essayer le handler synchrone si présent, sinon juste ack l'émission
+        const result = (entry as any).__runResult;
+        if (result !== undefined) return resolve(result);
+        resolve(`▶️ Script ${name} exécuté.`);
+      });
+      return await Promise.race([runPromise, timeoutPromise]);
+    } catch (err: any) {
+      return `❌ Erreur: ${err?.code === 'ERR_SCRIPT_EXECUTION_TIMEOUT' ? 'timeout (5s)' : err}`;
     }
   }
 

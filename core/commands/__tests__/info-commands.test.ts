@@ -222,7 +222,7 @@ describe('Info commands — runtime', () => {
       await r.dispatch(i, ctx);
 
       const arg = (i.reply as any).mock.calls[0][0];
-      expect(arg.content).toContain('ID du serveur requis');
+      expect(arg.embeds?.[0]?.data?.description ?? arg.content).toContain('ID du serveur requis');
     });
   });
 
@@ -308,7 +308,7 @@ describe('Info commands — runtime', () => {
       await r.dispatch(i, ctx);
 
       const arg = (i.reply as any).mock.calls[0][0];
-      expect(arg.content).toContain("n'a pas de bannière");
+      expect(arg.embeds?.[0]?.data?.description ?? arg.content).toContain("n'a pas de bannière");
     });
   });
 
@@ -347,7 +347,7 @@ describe('Info commands — runtime', () => {
       await r.dispatch(i, ctx);
 
       const arg = (i.reply as any).mock.calls[0][0];
-      expect(arg.content).toContain('invalide');
+      expect(arg.embeds?.[0]?.data?.description ?? arg.content).toContain('invalide');
     });
   });
 
@@ -368,9 +368,11 @@ describe('Info commands — runtime', () => {
 
       const arg = (i.reply as any).mock.calls[0][0];
       expect(arg.ephemeral).toBe(true);
-      expect(arg.content).toContain('Me#0001');
-      expect(arg.content).toContain('25');
-      expect(arg.content).toContain('12');
+      const embed = arg.embeds?.[0]?.data;
+      const flat = embed ? `${embed.title ?? ''} ${(embed.fields ?? []).map((f: any) => f.value).join(' ')}` : '';
+      expect(flat).toContain('Me#0001');
+      expect(flat).toContain('25');
+      expect(flat).toContain('12');
     });
 
     it('rejette si le selfbot n\'est pas connecté', async () => {
@@ -382,7 +384,7 @@ describe('Info commands — runtime', () => {
       await r.dispatch(i, ctx);
 
       const arg = (i.reply as any).mock.calls[0][0];
-      expect(arg.content).toContain('non connecté');
+      expect(arg.embeds?.[0]?.data?.description ?? arg.content).toContain('non connecté');
     });
   });
 
@@ -413,7 +415,7 @@ describe('Info commands — runtime', () => {
       await r.dispatch(i, ctx);
 
       const arg = (i.reply as any).mock.calls[0][0];
-      expect(arg.content).toContain("pas d'icône");
+      expect(arg.embeds?.[0]?.data?.description ?? arg.content).toContain("pas d'icône");
     });
   });
 });
@@ -493,7 +495,7 @@ describe('Info commands — selfbot data source', () => {
       await r.dispatch(i, ctx);
 
       const arg = (i.reply as any).mock.calls[0][0];
-      expect(arg.content).toContain('Serveur introuvable');
+      expect(arg.embeds?.[0]?.data?.description ?? arg.content).toContain('Serveur introuvable');
       expect(arg.ephemeral).toBe(true);
     });
   });
@@ -584,7 +586,7 @@ describe('Info commands — selfbot data source', () => {
       // Fallback sur l'avatar global
       expect(arg.embeds[0].data.image.url).toBe('https://global-avatar.png');
       // Pas de footer "Avatar spécifique"
-      expect(arg.embeds[0].data.footer?.text).toBeUndefined();
+      expect(arg.embeds[0].data.footer?.text).not.toBe('Avatar spécifique à ce serveur');
     });
 
     it("utilise user.displayAvatarURL si le selfbot n'est pas dans le guild", async () => {
